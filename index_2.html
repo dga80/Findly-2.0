@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Findly 2.0 - Buscador de Stock</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Findly 2.0</h1>
+            <p>Buscador de stock multi-empresa</p>
+        </header>
+
+        <section class="input-section">
+            <div class="input-tabs">
+                <button id="manualTab" class="tab-btn">Manual</button>
+                <button id="uploadTab" class="tab-btn active">Subir Excel</button>
+            </div>
+
+            <div id="manualInputContainer" class="input-container hidden">
+                <div class="of-selector-container">
+                    <label for="ofCompany">OF para:</label>
+                    <select id="ofCompany" class="of-select">
+                        <option value="CESA">CESA</option>
+                        <option value="MES">MES</option>
+                        <option value="AYC">AYC</option>
+                        <option value="LOESS">LOESS</option>
+                    </select>
+                </div>
+                <textarea id="refInput" placeholder="Pega aquí el listado de referencias (una por línea)..."></textarea>
+            </div>
+
+            <div id="uploadInputContainer" class="input-container">
+                <div class="of-selector-container">
+                    <label for="ofCompanyUpload">OF para:</label>
+                    <select id="ofCompanyUpload" class="of-select">
+                        <option value="CESA">CESA</option>
+                        <option value="MES">MES</option>
+                        <option value="AYC">AYC</option>
+                        <option value="LOESS">LOESS</option>
+                    </select>
+                </div>
+                <div class="upload-grid">
+                    <div class="file-drop-zone" id="dropZone">
+                        <input type="file" id="fileInput" accept=".xlsx, .xls" hidden>
+                        <p>Excel Principal <br><span class="browse">selecciona un archivo</span></p>
+                        <div id="fileInfo" class="hidden">
+                            <span class="file-name"></span>
+                            <button id="clearFile" class="btn-icon">×</button>
+                        </div>
+                    </div>
+                    <div class="file-drop-zone" id="addedStockDropZone">
+                        <input type="file" id="addedStockInput" accept=".xlsx, .xls" hidden>
+                        <p>Stock Dinámico <br><span class="browse">selecciona un archivo</span></p>
+                        <div id="addedStockInfo" class="hidden">
+                            <span class="file-name"></span>
+                            <button id="clearAddedStock" class="btn-icon">×</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="actions">
+                <button id="searchBtn" class="btn-primary">Buscar Stock</button>
+                <div class="export-actions">
+                    <button id="exportStockBtn" class="btn-secondary" disabled>Exportar Stock</button>
+                    <button id="exportPdfBtn" class="btn-secondary btn-pdf" disabled>Exportar PDF</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="results-section">
+            <div class="legend-container">
+                <div class="legend-item">
+                    <div class="legend-box common"></div>
+                    <span>Referencia con coincidencia en múltiples stocks</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-box encargo"></div>
+                    <span>Cant. Encargo (Pedido total)</span>
+                </div>
+            </div>
+            <div class="results-grid" id="resultsGrid">
+                <!-- Stock Cerdanya -->
+                <div class="result-card" id="card-Cerdanya">
+                    <h2>Stock Cerdanya</h2>
+                    <div class="table-container">
+                        <table id="invTable">
+                            <thead>
+                                <tr>
+                                    <th>Referencia</th>
+                                    <th>Ubicación</th>
+                                    <th>Stock</th>
+                                    <th>Encargo</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- CESA -->
+                <div class="result-card company-card" id="card-CESA">
+                    <h2>Stock CESA</h2>
+                    <div class="table-container">
+                        <table id="table-CESA">
+                            <thead>
+                                <tr>
+                                    <th>Referencia</th>
+                                    <th>Empresa</th>
+                                    <th>Stock</th>
+                                    <th>Encargo</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- MES -->
+                <div class="result-card company-card" id="card-MES">
+                    <h2>Stock MES</h2>
+                    <div class="table-container">
+                        <table id="table-MES">
+                            <thead>
+                                <tr>
+                                    <th>Referencia</th>
+                                    <th>Empresa</th>
+                                    <th>Stock</th>
+                                    <th>Encargo</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- AYC -->
+                <div class="result-card company-card" id="card-AYC">
+                    <h2>Stock AYC</h2>
+                    <div class="table-container">
+                        <table id="table-AYC">
+                            <thead>
+                                <tr>
+                                    <th>Referencia</th>
+                                    <th>Empresa</th>
+                                    <th>Stock</th>
+                                    <th>Encargo</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- LOESS -->
+                <div class="result-card company-card" id="card-LOESS">
+                    <h2>Stock LOESS</h2>
+                    <div class="table-container">
+                        <table id="table-LOESS">
+                            <thead>
+                                <tr>
+                                    <th>Referencia</th>
+                                    <th>Empresa</th>
+                                    <th>Stock</th>
+                                    <th>Encargo</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Stock Sonepar -->
+                <div class="result-card" id="card-Sonepar">
+                    <h2>Stock Sonepar</h2>
+                    <div class="table-container">
+                        <table id="sonTable">
+                            <thead>
+                                <tr>
+                                    <th>Referencia</th>
+                                    <th>Empresa</th>
+                                    <th>Stock</th>
+                                    <th>Encargo</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Stock STI -->
+                <div class="result-card sti-card" id="card-STI">
+                    <h2>
+                        <svg class="icon-basket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="2" y="7" width="20" height="15" rx="2" ry="2"/>
+                            <path d="M16 7V5a2 2 0 00-4 0v2"/>
+                            <path d="M8 7V5a2 2 0 014 0"/>
+                            <line x1="12" y1="12" x2="12" y2="16"/>
+                            <line x1="10" y1="14" x2="14" y2="14"/>
+                        </svg>
+                        Stock STI
+                    </h2>
+                    <div class="table-container">
+                        <table id="stiTable">
+                            <thead>
+                                <tr>
+                                    <th>Referencia</th>
+                                    <th>En STI</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Stock Dinámico -->
+                <div class="result-card dynamic-card" id="card-Dinamico">
+                    <h2>
+                        <svg class="icon-basket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 12V7H5L3 12V21H12"/>
+                            <path d="M3 12H21"/>
+                            <path d="M16 5V7"/>
+                            <path d="M13 5V7"/>
+                            <circle cx="18" cy="18" r="3"/>
+                            <path d="M18 15V18H21"/>
+                        </svg>
+                        Stock Dinámico
+                    </h2>
+                    <div class="table-container">
+                        <table id="dynamicTable">
+                            <thead>
+                                <tr>
+                                    <th>Referencia</th>
+                                    <th>Stock</th>
+                                    <th>Encargo</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+    <script>
+        // LÓGICA COMPLETA INTEGRADA
+        let searchResults = { inventario: [], sonepar: [], sti: [], addedStock: [], of_company: { name: '', data: [] }, others: [] };
+        let selectedFile = null;
+        let addedStockFile = null;
+        let currentInputData = [];
+        let currentAddedStockData = [];
+
+        // Tab logic
+        document.getElementById('manualTab').addEventListener('click', () => {
+            document.getElementById('manualTab').classList.add('active');
+            document.getElementById('uploadTab').classList.remove('active');
+            document.getElementById('manualInputContainer').classList.remove('hidden');
+            document.getElementById('uploadInputContainer').classList.add('hidden');
+            updateOfUI();
+        });
+
+        document.getElementById('uploadTab').addEventListener('click', () => {
+            document.getElementById('uploadTab').classList.add('active');
+            document.getElementById('manualTab').classList.remove('active');
+            document.getElementById('uploadInputContainer').classList.remove('hidden');
+            document.getElementById('manualInputContainer').classList.add('hidden');
+            updateOfUI();
+        });
+
+        // File upload logic
+        const fileInput = document.getElementById('fileInput');
+        document.getElementById('dropZone').addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                selectedFile = e.target.files[0];
+                document.querySelector('#fileInfo .file-name').textContent = selectedFile.name;
+                document.getElementById('fileInfo').classList.remove('hidden');
+            }
+        });
+
+        document.getElementById('clearFile').addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectedFile = null;
+            fileInput.value = '';
+            document.getElementById('fileInfo').classList.add('hidden');
+        });
+
+        const addedStockInput = document.getElementById('addedStockInput');
+        document.getElementById('addedStockDropZone').addEventListener('click', () => addedStockInput.click());
+        addedStockInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                addedStockFile = e.target.files[0];
+                document.querySelector('#addedStockInfo .file-name').textContent = addedStockFile.name;
+                document.getElementById('addedStockInfo').classList.remove('hidden');
+            }
+        });
+
+        document.getElementById('clearAddedStock').addEventListener('click', (e) => {
+            e.stopPropagation();
+            addedStockFile = null;
+            addedStockInput.value = '';
+            document.getElementById('addedStockInfo').classList.add('hidden');
+        });
+
+        // Dynamic UI logic
+        function updateOfUI() {
+            try {
+                const manualCont = document.getElementById('manualInputContainer');
+                const isManual = !manualCont.classList.contains('hidden');
+                const selectedCompany = isManual ? document.getElementById('ofCompany').value : document.getElementById('ofCompanyUpload').value;
+
+                if (isManual) document.getElementById('ofCompanyUpload').value = selectedCompany;
+                else document.getElementById('ofCompany').value = selectedCompany;
+
+                const allCompanies = ['CESA', 'MES', 'AYC', 'LOESS'];
+                document.getElementById('card-Cerdanya').style.order = "1";
+
+                allCompanies.forEach((name, index) => {
+                    const card = document.getElementById(`card-${name}`);
+                    if (!card) return;
+                    card.classList.remove('of-card');
+                    if (name === selectedCompany) {
+                        card.classList.add('of-card');
+                        card.querySelector('h2').innerHTML = `Stock ${name} <span class="of-badge">Prioridad OF</span>`;
+                        card.style.order = "2";
+                    } else {
+                        card.querySelector('h2').textContent = `Stock ${name}`;
+                        card.style.order = (10 + index).toString();
+                    }
+                });
+
+                document.getElementById('card-Sonepar').style.order = "50";
+                document.getElementById('card-STI').style.order = "51";
+                document.getElementById('card-Dinamico').style.order = "52";
+            } catch (e) { console.error(e); }
+        }
+
+        document.getElementById('ofCompany').addEventListener('change', updateOfUI);
+        document.getElementById('ofCompanyUpload').addEventListener('change', updateOfUI);
+        updateOfUI();
+
+        // Search Logic
+        document.getElementById('searchBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('searchBtn');
+            btn.textContent = "Procesando...";
+            btn.disabled = true;
+            document.body.classList.add('loading');
+
+            try {
+                let references = [];
+                const isManual = !document.getElementById('manualInputContainer').classList.contains('hidden');
+                
+                if (isManual) {
+                    const text = document.getElementById('refInput').value;
+                    const refs = text.split('\n').map(r => r.trim()).filter(r => r !== "");
+                    if (refs.length === 0) throw new Error("Introduce referencias");
+                    currentInputData = refs.map(r => ({ reference: r, quantity: 1 }));
+                    references = refs;
+                } else {
+                    if (!selectedFile) throw new Error("Selecciona un archivo");
+                    const formData = new FormData();
+                    formData.append('file', selectedFile);
+                    const uploadRes = await fetch('http://localhost:5000/upload', { method: 'POST', body: formData });
+                    currentInputData = await uploadRes.json();
+                    references = currentInputData;
+                }
+
+                if (addedStockFile) {
+                    const formDataAdded = new FormData();
+                    formDataAdded.append('file', addedStockFile);
+                    const uploadAddedRes = await fetch('http://localhost:5000/upload', { method: 'POST', body: formDataAdded });
+                    currentAddedStockData = await uploadAddedRes.json();
+                } else { currentAddedStockData = []; }
+
+                const ofCompany = isManual ? document.getElementById('ofCompany').value : document.getElementById('ofCompanyUpload').value;
+                const response = await fetch('http://localhost:5000/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ references, addedStock: currentAddedStockData, of_company: ofCompany })
+                });
+
+                searchResults = await response.json();
+                renderTables();
+                document.getElementById('exportStockBtn').disabled = false;
+                document.getElementById('exportPdfBtn').disabled = false;
+            } catch (error) {
+                alert(error.message || "Error en la búsqueda");
+            } finally {
+                btn.textContent = "Buscar Stock";
+                btn.disabled = false;
+                document.body.classList.remove('loading');
+            }
+        });
+
+        function renderTables() {
+            const allFoundRefs = new Map();
+            const countRef = (ref) => {
+                const r = String(ref).trim().toUpperCase();
+                allFoundRefs.set(r, (allFoundRefs.get(r) || 0) + 1);
+            };
+
+            (searchResults.inventario || []).forEach(item => countRef(item.Referencia));
+            if (searchResults.of_company) (searchResults.of_company.data || []).forEach(item => countRef(item.Referencia));
+            (searchResults.sonepar || []).forEach(item => countRef(item.Referencia));
+            (searchResults.sti || []).forEach(ref => countRef(ref));
+            (searchResults.addedStock || []).forEach(item => countRef(item.Referencia));
+            (searchResults.others || []).forEach(comp => comp.data.forEach(item => countRef(item.Referencia)));
+
+            const isCommon = (ref) => allFoundRefs.get(String(ref).trim().toUpperCase()) > 1;
+
+            const renderBody = (id, data, hasEmpresa = true) => {
+                const tbody = document.querySelector(`#${id} tbody`);
+                if (!tbody) return;
+                tbody.innerHTML = (data || []).map(item => `
+                    <tr>
+                        <td>${item.Referencia || item}</td>
+                        <td>${hasEmpresa ? (item.Empresa || item.Ubicacion || '-') : (item.Cantidad || '-')}</td>
+                        ${hasEmpresa ? `<td><span class="${isCommon(item.Referencia) ? 'common-stock-badge' : ''}">${item.Cantidad}</span></td>` : ''}
+                        <td><span class="cant-encargo">${item.CantEncargo || '-'}</span></td>
+                    </tr>
+                `).join('') || '<tr><td colspan="4" style="text-align:center">Sin resultados</td></tr>';
+            };
+
+            renderBody('invTable', searchResults.inventario);
+            ['CESA', 'MES', 'AYC', 'LOESS'].forEach(name => {
+                let data = (searchResults.of_company && searchResults.of_company.name === name) ? searchResults.of_company.data : (searchResults.others.find(c => c.name === name)?.data || []);
+                renderBody(`table-${name}`, data);
+            });
+            renderBody('sonTable', searchResults.sonepar);
+            renderBody('dynamicTable', searchResults.addedStock, false);
+            
+            const stiSet = new Set((searchResults.sti || []).map(r => String(r).trim().toUpperCase()));
+            const stiRows = [...new Set(currentInputData.map(item => String(item.reference || item).trim()))].filter(ref => stiSet.has(ref.toUpperCase()));
+            document.querySelector('#stiTable tbody').innerHTML = stiRows.map(ref => `<tr><td><span class="${isCommon(ref) ? 'common-stock-badge' : ''}">${ref}</span></td><td>✔ Disponible</td></tr>`).join('') || '<tr><td colspan="2" style="text-align:center">Sin coincidencias</td></tr>';
+            
+            updateOfUI();
+        }
+
+        // Export Actions (FULL)
+        document.getElementById('exportStockBtn').addEventListener('click', () => {
+            const wb = XLSX.utils.book_new();
+            if (searchResults.inventario.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(searchResults.inventario), "Cerdanya");
+            if (searchResults.of_company && searchResults.of_company.data.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(searchResults.of_company.data), `${searchResults.of_company.name} (OF)`);
+            (searchResults.others || []).forEach(c => { if(c.data.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(c.data), c.name); });
+            if (searchResults.sonepar.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(searchResults.sonepar), "Sonepar");
+            if (searchResults.addedStock.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(searchResults.addedStock), "Dinamico");
+            XLSX.writeFile(wb, "Stock_Findly_2.xlsx");
+        });
+
+        document.getElementById('exportPdfBtn').addEventListener('click', () => {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'mm', 'a4');
+            const pageWidth = doc.internal.pageSize.getWidth();
+            
+            const primaryColor = [30, 41, 59];
+            const accentColor = [37, 99, 235];
+            const highlightColor = [224, 231, 255];
+            const highlightTextColor = [30, 58, 138];
+
+            const allFoundRefs = new Set();
+            const duplicateRefs = new Set();
+            
+            const trackRefs = (data) => {
+                (data || []).forEach(item => {
+                    const ref = String(item.Referencia || item).trim().toUpperCase();
+                    if (allFoundRefs.has(ref)) duplicateRefs.add(ref);
+                    else allFoundRefs.add(ref);
+                });
+            };
+
+            trackRefs(searchResults.inventario);
+            if (searchResults.of_company) trackRefs(searchResults.of_company.data);
+            (searchResults.others || []).forEach(c => trackRefs(c.data));
+            trackRefs(searchResults.sonepar);
+            trackRefs(searchResults.sti);
+            trackRefs(searchResults.addedStock);
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(18);
+            doc.setTextColor(...primaryColor);
+            let titleName = selectedFile ? selectedFile.name.substring(0, selectedFile.name.lastIndexOf('.')) : "Manual";
+            doc.text(`${titleName} / Informe de Stock`, 10, 15);
+            
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(100);
+            const dateStr = new Date().toLocaleString('es-ES', { 
+                day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' 
+            });
+            doc.text(`Generado: ${dateStr}`, 10, 20);
+            
+            doc.setDrawColor(...accentColor);
+            doc.setLineWidth(0.4);
+            doc.line(10, 23, pageWidth - 10, 23);
+
+            doc.setFontSize(8);
+            doc.setFont("helvetica", "italic");
+            doc.setTextColor(...highlightTextColor);
+            doc.text("* Filas en azul: Referencia encontrada en múltiples stocks.", 10, 28);
+
+            let currentY = 35;
+            const paddingX = 10;
+            const colWidth = 65;
+            const gap = 5;
+
+            const renderTable = (title, data, x, y, width, color = primaryColor, isSti = false) => {
+                doc.setFontSize(10);
+                doc.setTextColor(...color);
+                doc.text(title, x, y - 2);
+
+                doc.autoTable({
+                    startY: y,
+                    margin: { left: x },
+                    tableWidth: width,
+                    head: isSti ? [['Ref']] : [['Ref', 'Stock', 'Enc', 'Obs']],
+                    body: isSti 
+                        ? (data || []).map(ref => [ref])
+                        : (data || []).map(item => [item.Referencia, item.Cantidad, item.CantEncargo || '-', '']),
+                    theme: 'grid',
+                    headStyles: { fillColor: color, textColor: 255, fontSize: 7, cellPadding: 1 },
+                    styles: { fontSize: 6.5, cellPadding: 0.8 },
+                    didParseCell: (cellData) => {
+                        if (cellData.section === 'body' && cellData.row.raw) {
+                            const ref = String(cellData.row.raw[0]).trim().toUpperCase();
+                            if (duplicateRefs.has(ref)) {
+                                cellData.cell.styles.fillColor = highlightColor;
+                                cellData.cell.styles.textColor = highlightTextColor;
+                                cellData.cell.styles.fontStyle = 'bold';
+                            }
+                        }
+                    }
+                });
+                return doc.lastAutoTable.finalY + 10;
+            };
+
+            let nextY = currentY;
+            let maxY = nextY;
+
+            maxY = Math.max(maxY, renderTable("Inventario Cerdanya", searchResults.inventario, paddingX, nextY, colWidth, primaryColor));
+            if (searchResults.of_company && searchResults.of_company.name) {
+                maxY = Math.max(maxY, renderTable(`Stock ${searchResults.of_company.name} (OF)`, searchResults.of_company.data, paddingX + colWidth + gap, nextY, colWidth, accentColor));
+            }
+            maxY = Math.max(maxY, renderTable("Stock Sonepar", searchResults.sonepar, paddingX + (colWidth + gap) * 2, nextY, colWidth, [15, 118, 110]));
+            maxY = Math.max(maxY, renderTable("Stock STI", searchResults.sti, paddingX + (colWidth + gap) * 3, nextY, 30, [21, 128, 61], true));
+
+            currentY = maxY;
+            nextY = currentY;
+            let currentX = paddingX;
+
+            (searchResults.others || []).forEach((comp) => {
+                if (currentX + colWidth > pageWidth - paddingX) {
+                    currentX = paddingX;
+                    nextY = maxY;
+                }
+                let tableY = renderTable(`Stock ${comp.name}`, comp.data, currentX, nextY, colWidth, [100, 100, 100]);
+                maxY = Math.max(maxY, tableY);
+                currentX += colWidth + gap;
+            });
+
+            if (currentX + colWidth > pageWidth - paddingX) {
+                currentX = paddingX;
+                nextY = maxY;
+            }
+            renderTable("Stock Dinámico", searchResults.addedStock, currentX, nextY, colWidth, [3, 105, 161]);
+
+            let fileName = selectedFile 
+                ? `${selectedFile.name.substring(0, selectedFile.name.lastIndexOf('.'))}_STOCK.pdf` 
+                : "Informe_Stock.pdf";
+            doc.save(fileName);
+        });
+    </script>
+</body>
+</html>

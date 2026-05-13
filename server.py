@@ -11,6 +11,19 @@ PATH_INVENTARIO = r"\\172.30.0.10\Logistica\06-ALMACENES\06.01-ALMACEN CERDANYA\
 PATH_SONEPAR = r"\\172.30.0.10\Logistica\06-ALMACENES\06.01-ALMACEN CERDANYA\STOCK\STOCK SCHNEIDER-SONEPAR 26.xlsx"
 PATH_STI = r"\\172.30.0.10\Logistica\06-ALMACENES\06.01-ALMACEN CERDANYA\STOCK\ZOE STI.xlsx"
 
+# Nuevas empresas (rutas por confirmar)
+PATH_CESA = r"\\172.30.0.10\Logistica\06-ALMACENES\06.01-ALMACEN CERDANYA\STOCK\CESA.xlsx"
+PATH_MES = r"\\172.30.0.10\Logistica\06-ALMACENES\06.01-ALMACEN CERDANYA\STOCK\MES.xlsx"
+PATH_AYC = r"\\172.30.0.10\Logistica\06-ALMACENES\06.01-ALMACEN CERDANYA\STOCK\AYC.xlsx"
+PATH_LOESS = r"\\172.30.0.10\Logistica\06-ALMACENES\06.01-ALMACEN CERDANYA\STOCK\LOESS.xlsx"
+
+COMPANY_PATHS = {
+    'CESA': PATH_CESA,
+    'MES': PATH_MES,
+    'AYC': PATH_AYC,
+    'LOESS': PATH_LOESS
+}
+
 def read_inventario():
     try:
         # Detectar columnas dinámicamente por palabras clave
@@ -154,6 +167,48 @@ def read_sonepar():
         print(f"❌ Error reading Sonepar: {e}")
         import traceback
         traceback.print_exc()
+        return pd.DataFrame(columns=['Referencia', 'Empresa', 'Cantidad'])
+
+
+def read_company_file(path, company_name):
+    """Lector genérico para archivos de empresas CESA, MES, AYC, LOESS"""
+    try:
+        if not os.path.exists(path):
+            print(f"⚠ Archivo no encontrado para {company_name}: {path}")
+            return pd.DataFrame(columns=['Referencia', 'Empresa', 'Cantidad'])
+
+        df_header = pd.read_excel(path, nrows=0)
+        
+        # Lógica similar a Sonepar para detectar columnas
+        col_ref = None
+        col_qty = None
+        
+        ref_keywords = ['referencia', 'ref', 'codigo', 'código']
+        qty_keywords = ['cantidad', 'stock', 'cant', 'total', 'resto']
+        
+        for col in df_header.columns:
+            col_lower = str(col).lower().strip()
+            if any(kw == col_lower for kw in ref_keywords): col_ref = col
+            if any(kw == col_lower for kw in qty_keywords): col_qty = col
+            
+        if col_ref is None and len(df_header.columns) > 1: col_ref = df_header.columns[1]
+        if col_qty is None and len(df_header.columns) > 2: col_qty = df_header.columns[2]
+
+        cols_to_use = [c for c in [col_ref, col_qty] if c is not None]
+        df = pd.read_excel(path, usecols=cols_to_use)
+        
+        result = pd.DataFrame()
+        result['Referencia'] = df[col_ref] if col_ref else ''
+        result['Cantidad'] = df[col_qty] if col_qty else 0
+        result['Empresa'] = company_name
+        
+        result = result.dropna(subset=['Referencia'])
+        result['Cantidad'] = pd.to_numeric(result['Cantidad'], errors='coerce').fillna(0)
+        
+        print(f"✓ Archivo {company_name} leído: {len(result)} registros")
+        return result
+    except Exception as e:
+        print(f"❌ Error reading {company_name}: {e}")
         return pd.DataFrame(columns=['Referencia', 'Empresa', 'Cantidad'])
 
 
@@ -316,12 +371,19 @@ def upload_file():
 @app.route('/search', methods=['POST'])
 def search():
     data = request.json
-    # Puede recibir una lista de strings o una lista de objetos {reference, quantity}
     input_data = data.get('references', [])
     added_stock_input = data.get('addedStock', [])
+    of_company = data.get('of_company', 'CESA') # Por defecto CESA
 
     if not input_data:
-        return jsonify({'inventario': [], 'sonepar': [], 'sti': [], 'addedStock': []})
+        return jsonify({
+            'inventario': [], 
+            'of_company': {'name': of_company, 'data': []},
+            'others': [],
+            'sonepar': [], 
+            'sti': [], 
+            'addedStock': []
+        })
 
     references_to_search = []
     qty_map = {}
@@ -338,7 +400,6 @@ def search():
             references_to_search.append(ref)
             qty_map[ref] = qty_map.get(ref, 0) + float(qty)
 
-    # Procesar Stock Añadido (Dinámico)
     added_stock_map = {}
     for item in added_stock_input:
         ref = str(item.get('reference', '')).strip().upper()
@@ -346,23 +407,54 @@ def search():
         if ref:
             added_stock_map[ref] = added_stock_map.get(ref, 0) + float(qty)
 
+    # 1. Leer Cerdanya
     df_inv = read_inventario()
-    df_son = read_sonepar()
-    df_sti = read_sti()
-
-    # Convertir a mayúsculas para búsqueda exacta case-insensitive
     df_inv['Referencia_UC'] = df_inv['Referencia'].astype(str).str.strip().str.upper()
-    df_son['Referencia_UC'] = df_son['Referencia'].astype(str).str.strip().str.upper()
-    df_sti['Referencia_UC'] = df_sti['Referencia'].astype(str).str.strip().str.upper()
-
-    # Filtrar resultados de archivos fijos
     res_inv = df_inv[df_inv['Referencia_UC'].isin(references_to_search)].to_dict('records')
-    res_son = df_son[df_son['Referencia_UC'].isin(references_to_search)].to_dict('records')
-    res_sti_refs = set(df_sti[df_sti['Referencia_UC'].isin(references_to_search)]['Referencia'].tolist())
+    res_inv = [item for item in res_inv if float(item.get('Cantidad', 0)) > 0]
+    for item in res_inv:
+        item.pop('Referencia_UC', None)
+        item['CantEncargo'] = qty_map.get(str(item['Referencia']).strip().upper(), 0)
 
-    # Filtrar resultados de Stock Añadido
+    # 2. Leer OF Company
+    df_of = read_company_file(COMPANY_PATHS.get(of_company), of_company)
+    df_of['Referencia_UC'] = df_of['Referencia'].astype(str).str.strip().str.upper()
+    res_of_data = df_of[df_of['Referencia_UC'].isin(references_to_search)].to_dict('records')
+    res_of_data = [item for item in res_of_data if float(item.get('Cantidad', 0)) > 0]
+    for item in res_of_data:
+        item.pop('Referencia_UC', None)
+        item['CantEncargo'] = qty_map.get(str(item['Referencia']).strip().upper(), 0)
+
+    # 3. Leer Otras Empresas
+    other_companies = [c for c in COMPANY_PATHS.keys() if c != of_company]
+    res_others = []
+    for comp in other_companies:
+        df_comp = read_company_file(COMPANY_PATHS.get(comp), comp)
+        df_comp['Referencia_UC'] = df_comp['Referencia'].astype(str).str.strip().str.upper()
+        comp_data = df_comp[df_comp['Referencia_UC'].isin(references_to_search)].to_dict('records')
+        comp_data = [item for item in comp_data if float(item.get('Cantidad', 0)) > 0]
+        for item in comp_data:
+            item.pop('Referencia_UC', None)
+            item['CantEncargo'] = qty_map.get(str(item['Referencia']).strip().upper(), 0)
+        if comp_data:
+            res_others.append({'name': comp, 'data': comp_data})
+
+    # 4. Leer Sonepar
+    df_son = read_sonepar()
+    df_son['Referencia_UC'] = df_son['Referencia'].astype(str).str.strip().str.upper()
+    res_son = df_son[df_son['Referencia_UC'].isin(references_to_search)].to_dict('records')
+    res_son = [item for item in res_son if float(item.get('Cantidad', 0)) > 0]
+    for item in res_son:
+        item.pop('Referencia_UC', None)
+        item['CantEncargo'] = qty_map.get(str(item['Referencia']).strip().upper(), 0)
+
+    # 5. Leer STI
+    df_sti = read_sti()
+    df_sti['Referencia_UC'] = df_sti['Referencia'].astype(str).str.strip().str.upper()
+    res_sti_refs = list(set(df_sti[df_sti['Referencia_UC'].isin(references_to_search)]['Referencia'].tolist()))
+
+    # 6. Stock Dinámico
     res_added = []
-    # Usamos set para evitar duplicados si la misma referencia está varias veces en la búsqueda
     unique_refs_to_search = set(references_to_search)
     for ref in unique_refs_to_search:
         if ref in added_stock_map and added_stock_map[ref] > 0:
@@ -372,31 +464,12 @@ def search():
                 'CantEncargo': qty_map.get(ref, 0)
             })
 
-    # Filtrar stock 0
-    res_inv = [item for item in res_inv if float(item.get('Cantidad', 0)) > 0]
-    res_son = [item for item in res_son if float(item.get('Cantidad', 0)) > 0]
-
-    # Limpiar columnas temporales y añadir CantEncargo
-    for item in res_inv:
-        item.pop('Referencia_UC', None)
-        ref_upper = str(item['Referencia']).strip().upper()
-        item['CantEncargo'] = qty_map.get(ref_upper, 0)
-        for key, value in item.items():
-            if pd.isna(value):
-                item[key] = 0 if key in ['Cantidad', 'CantEncargo'] else ''
-
-    for item in res_son:
-        item.pop('Referencia_UC', None)
-        ref_upper = str(item['Referencia']).strip().upper()
-        item['CantEncargo'] = qty_map.get(ref_upper, 0)
-        for key, value in item.items():
-            if pd.isna(value):
-                item[key] = 0 if key in ['Cantidad', 'CantEncargo'] else ''
-
     return jsonify({
         'inventario': res_inv,
+        'of_company': {'name': of_company, 'data': res_of_data},
+        'others': res_others,
         'sonepar': res_son,
-        'sti': list(res_sti_refs),
+        'sti': res_sti_refs,
         'addedStock': res_added
     })
 

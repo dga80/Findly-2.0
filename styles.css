@@ -59,6 +59,43 @@ header p {
     margin-bottom: 2rem;
 }
 
+.of-selector-container {
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: #f1f5f9;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border-color);
+}
+
+.of-selector-container label {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--text-color);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.of-select {
+    padding: 0.5rem 1rem;
+    border-radius: 0.4rem;
+    border: 2px solid var(--primary-color);
+    background: white;
+    font-family: inherit;
+    font-weight: 600;
+    color: var(--primary-color);
+    cursor: pointer;
+    outline: none;
+    transition: all 0.2s;
+}
+
+.of-select:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
 textarea {
     width: 100%;
     height: 150px;
@@ -185,12 +222,39 @@ textarea:focus {
     display: flex;
     flex-direction: column;
     min-width: 0;
-    /* Evita que el contenido ensanche la tarjeta */
+    transition: transform 0.3s ease, box-shadow 0.3s ease, order 0.3s ease;
 }
 
 .sti-card {
     border: 2px solid #bbf7d0;
     background-color: #f0fdf4;
+}
+
+.of-card {
+    border: 3px solid var(--primary-color) !important;
+    background-color: #eff6ff !important;
+    transform: scale(1.02);
+    box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.2);
+    z-index: 5;
+}
+
+.of-card h2 {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+    font-weight: 800;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.of-badge {
+    background: var(--primary-color);
+    color: white;
+    font-size: 0.65rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .sti-card h2 {

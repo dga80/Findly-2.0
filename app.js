@@ -107,9 +107,16 @@ function updateOfUI() {
             ofCompManual.value = selectedCompany;
         }
 
+        const cards = Array.from(document.querySelectorAll('.result-card'));
         const allCompanies = ['CESA', 'MES', 'AYC', 'LOESS'];
         
-        // 1. Resetear todas las cápsulas y asignar órdenes base
+        // --- FLIP: FIRST ---
+        const firstPositions = new Map();
+        cards.forEach(card => {
+            firstPositions.set(card.id, card.getBoundingClientRect());
+        });
+
+        // --- ACCIÓN: Cambiar el estado del DOM ---
         const invCard = document.getElementById('card-Cerdanya');
         if (invCard) invCard.style.order = "1";
 
@@ -121,15 +128,21 @@ function updateOfUI() {
             
             if (name === selectedCompany) {
                 card.classList.add('of-card');
-                card.querySelector('h2').innerHTML = `Stock ${name} <span class="of-badge">Prioridad OF</span>`;
-                card.style.order = "2"; // Justo después de Cerdanya
+                // Solo actualizar si el contenido ha cambiado para evitar flashes de animación
+                const newTitle = `Stock ${name} <span class="of-badge">Prioridad OF</span>`;
+                if (card.querySelector('h2').innerHTML !== newTitle) {
+                    card.querySelector('h2').innerHTML = newTitle;
+                }
+                card.style.order = "2"; 
             } else {
-                card.querySelector('h2').textContent = `Stock ${name}`;
-                card.style.order = (10 + index).toString(); // Al final
+                const newTitle = `Stock ${name}`;
+                if (card.querySelector('h2').textContent !== newTitle) {
+                    card.querySelector('h2').textContent = newTitle;
+                }
+                card.style.order = (10 + index).toString();
             }
         });
 
-        // Ordenar el resto de tarjetas fijas
         const ids = {
             'card-Sonepar': "50",
             'card-STI': "51",
@@ -140,6 +153,31 @@ function updateOfUI() {
             const card = document.getElementById(id);
             if (card) card.style.order = order;
         }
+
+        // --- FLIP: LAST, INVERT, PLAY ---
+        requestAnimationFrame(() => {
+            cards.forEach(card => {
+                const firstRect = firstPositions.get(card.id);
+                const lastRect = card.getBoundingClientRect();
+                
+                const dx = firstRect.left - lastRect.left;
+                const dy = firstRect.top - lastRect.top;
+
+                if (dx !== 0 || dy !== 0) {
+                    // Invertir: moverlo a la posición inicial instantáneamente
+                    card.style.transition = 'none';
+                    card.style.transform = `translate(${dx}px, ${dy}px) ${card.classList.contains('of-card') ? 'scale(1.02)' : 'scale(1)'}`;
+                    
+                    // Forzar reflow
+                    card.offsetHeight;
+
+                    // Play: permitir que la transición CSS lo devuelva a su posición natural
+                    card.style.transition = '';
+                    card.style.transform = '';
+                }
+            });
+        });
+
     } catch (e) {
         console.error("Error updating UI:", e);
     }

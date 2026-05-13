@@ -323,7 +323,15 @@
                 if (isManual) document.getElementById('ofCompanyUpload').value = selectedCompany;
                 else document.getElementById('ofCompany').value = selectedCompany;
 
+                const cards = Array.from(document.querySelectorAll('.result-card'));
                 const allCompanies = ['CESA', 'MES', 'AYC', 'LOESS'];
+
+                // --- FLIP: FIRST ---
+                const firstPositions = new Map();
+                cards.forEach(card => {
+                    firstPositions.set(card.id, card.getBoundingClientRect());
+                });
+
                 document.getElementById('card-Cerdanya').style.order = "1";
 
                 allCompanies.forEach((name, index) => {
@@ -332,10 +340,16 @@
                     card.classList.remove('of-card');
                     if (name === selectedCompany) {
                         card.classList.add('of-card');
-                        card.querySelector('h2').innerHTML = `Stock ${name} <span class="of-badge">Prioridad OF</span>`;
+                        const newTitle = `Stock ${name} <span class="of-badge">Prioridad OF</span>`;
+                        if (card.querySelector('h2').innerHTML !== newTitle) {
+                            card.querySelector('h2').innerHTML = newTitle;
+                        }
                         card.style.order = "2";
                     } else {
-                        card.querySelector('h2').textContent = `Stock ${name}`;
+                        const newTitle = `Stock ${name}`;
+                        if (card.querySelector('h2').textContent !== newTitle) {
+                            card.querySelector('h2').textContent = newTitle;
+                        }
                         card.style.order = (10 + index).toString();
                     }
                 });
@@ -343,6 +357,26 @@
                 document.getElementById('card-Sonepar').style.order = "50";
                 document.getElementById('card-STI').style.order = "51";
                 document.getElementById('card-Dinamico').style.order = "52";
+
+                // --- FLIP: LAST, INVERT, PLAY ---
+                requestAnimationFrame(() => {
+                    cards.forEach(card => {
+                        const firstRect = firstPositions.get(card.id);
+                        if (!firstRect) return;
+                        const lastRect = card.getBoundingClientRect();
+                        
+                        const dx = firstRect.left - lastRect.left;
+                        const dy = firstRect.top - lastRect.top;
+
+                        if (dx !== 0 || dy !== 0) {
+                            card.style.transition = 'none';
+                            card.style.transform = `translate(${dx}px, ${dy}px) ${card.classList.contains('of-card') ? 'scale(1.02)' : 'scale(1)'}`;
+                            card.offsetHeight;
+                            card.style.transition = '';
+                            card.style.transform = '';
+                        }
+                    });
+                });
             } catch (e) { console.error(e); }
         }
 

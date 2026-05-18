@@ -11,11 +11,11 @@ PATH_INVENTARIO = r"\\172.30.0.10\Logistica\06-ALMACENES\06.01-ALMACEN CERDANYA\
 PATH_SONEPAR = r"\\172.30.0.10\Logistica\06-ALMACENES\06.01-ALMACEN CERDANYA\STOCK\STOCK SCHNEIDER-SONEPAR 26.xlsx"
 PATH_STI = r"\\172.30.0.10\Logistica\06-ALMACENES\06.01-ALMACEN CERDANYA\STOCK\ZOE STI.xlsx"
 
-# Nuevas empresas (rutas por confirmar)
-PATH_CESA = r"\\172.30.0.10\Logistica\06-ALMACENES\06.01-ALMACEN CERDANYA\STOCK\CESA.xlsx"
-PATH_MES = r"\\172.30.0.10\Logistica\06-ALMACENES\06.01-ALMACEN CERDANYA\STOCK\MES.xlsx"
-PATH_AYC = r"\\172.30.0.10\Logistica\06-ALMACENES\06.01-ALMACEN CERDANYA\STOCK\AYC.xlsx"
-PATH_LOESS = r"\\172.30.0.10\Logistica\06-ALMACENES\06.01-ALMACEN CERDANYA\STOCK\LOESS.xlsx"
+# Nuevas empresas
+PATH_CESA = r"\\172.30.0.10\Logistica\06-ALMACENES\06.01-ALMACEN CERDANYA\STOCK\STOCK CESA SCHNEIDER-SONEPAR 26.xlsx"
+PATH_MES = r"\\172.30.0.10\Logistica\06-ALMACENES\06.01-ALMACEN CERDANYA\STOCK\STOCK MES SCHNEIDER-SONEPAR 26.xlsx"
+PATH_AYC = r"\\172.30.0.10\Logistica\06-ALMACENES\06.01-ALMACEN CERDANYA\STOCK\STOCK AYC SCHNEIDER-SONEPAR 26.xlsx"
+PATH_LOESS = r"\\172.30.0.10\Logistica\06-ALMACENES\06.01-ALMACEN CERDANYA\STOCK\STOCK LOESS SCHNEIDER-SONEPAR 26.xlsx"
 
 COMPANY_PATHS = {
     'CESA': PATH_CESA,
@@ -184,12 +184,22 @@ def read_company_file(path, company_name):
         col_qty = None
         
         ref_keywords = ['referencia', 'ref', 'codigo', 'código']
-        qty_keywords = ['cantidad', 'stock', 'cant', 'total', 'resto']
+        qty_keywords = ['resto', 'cantidad', 'stock', 'cant', 'total']
         
+        # 1. Búsqueda por coincidencia exacta
         for col in df_header.columns:
             col_lower = str(col).lower().strip()
             if any(kw == col_lower for kw in ref_keywords): col_ref = col
             if any(kw == col_lower for kw in qty_keywords): col_qty = col
+
+        # 2. Búsqueda por coincidencia parcial (importante para "resto")
+        if col_ref is None or col_qty is None:
+            for col in df_header.columns:
+                col_lower = str(col).lower().strip()
+                if col_ref is None and any(kw in col_lower for kw in ref_keywords):
+                    col_ref = col
+                if col_qty is None and any(kw in col_lower for kw in qty_keywords):
+                    col_qty = col
             
         if col_ref is None and len(df_header.columns) > 1: col_ref = df_header.columns[1]
         if col_qty is None and len(df_header.columns) > 2: col_qty = df_header.columns[2]
@@ -439,14 +449,7 @@ def search():
         if comp_data:
             res_others.append({'name': comp, 'data': comp_data})
 
-    # 4. Leer Sonepar
-    df_son = read_sonepar()
-    df_son['Referencia_UC'] = df_son['Referencia'].astype(str).str.strip().str.upper()
-    res_son = df_son[df_son['Referencia_UC'].isin(references_to_search)].to_dict('records')
-    res_son = [item for item in res_son if float(item.get('Cantidad', 0)) > 0]
-    for item in res_son:
-        item.pop('Referencia_UC', None)
-        item['CantEncargo'] = qty_map.get(str(item['Referencia']).strip().upper(), 0)
+
 
     # 5. Leer STI
     df_sti = read_sti()
@@ -468,7 +471,6 @@ def search():
         'inventario': res_inv,
         'of_company': {'name': of_company, 'data': res_of_data},
         'others': res_others,
-        'sonepar': res_son,
         'sti': res_sti_refs,
         'addedStock': res_added
     })

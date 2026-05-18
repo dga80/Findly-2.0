@@ -181,23 +181,7 @@
                     </div>
                 </div>
 
-                <!-- Stock Sonepar -->
-                <div class="result-card" id="card-Sonepar">
-                    <h2>Stock Sonepar</h2>
-                    <div class="table-container">
-                        <table id="sonTable">
-                            <thead>
-                                <tr>
-                                    <th>Referencia</th>
-                                    <th>Empresa</th>
-                                    <th>Stock</th>
-                                    <th>Encargo</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
-                </div>
+
 
                 <!-- Stock STI -->
                 <div class="result-card sti-card" id="card-STI">
@@ -354,7 +338,6 @@
                     }
                 });
 
-                document.getElementById('card-Sonepar').style.order = "50";
                 document.getElementById('card-STI').style.order = "51";
                 document.getElementById('card-Dinamico').style.order = "52";
 
@@ -446,8 +429,6 @@
 
             (searchResults.inventario || []).forEach(item => countRef(item.Referencia));
             if (searchResults.of_company) (searchResults.of_company.data || []).forEach(item => countRef(item.Referencia));
-            (searchResults.sonepar || []).forEach(item => countRef(item.Referencia));
-            (searchResults.sti || []).forEach(ref => countRef(ref));
             (searchResults.addedStock || []).forEach(item => countRef(item.Referencia));
             (searchResults.others || []).forEach(comp => comp.data.forEach(item => countRef(item.Referencia)));
 
@@ -471,12 +452,11 @@
                 let data = (searchResults.of_company && searchResults.of_company.name === name) ? searchResults.of_company.data : (searchResults.others.find(c => c.name === name)?.data || []);
                 renderBody(`table-${name}`, data);
             });
-            renderBody('sonTable', searchResults.sonepar);
             renderBody('dynamicTable', searchResults.addedStock, false);
             
             const stiSet = new Set((searchResults.sti || []).map(r => String(r).trim().toUpperCase()));
             const stiRows = [...new Set(currentInputData.map(item => String(item.reference || item).trim()))].filter(ref => stiSet.has(ref.toUpperCase()));
-            document.querySelector('#stiTable tbody').innerHTML = stiRows.map(ref => `<tr><td><span class="${isCommon(ref) ? 'common-stock-badge' : ''}">${ref}</span></td><td>✔ Disponible</td></tr>`).join('') || '<tr><td colspan="2" style="text-align:center">Sin coincidencias</td></tr>';
+            document.querySelector('#stiTable tbody').innerHTML = stiRows.map(ref => `<tr><td><span>${ref}</span></td><td>✔ Disponible</td></tr>`).join('') || '<tr><td colspan="2" style="text-align:center">Sin coincidencias</td></tr>';
             
             updateOfUI();
         }
@@ -487,7 +467,6 @@
             if (searchResults.inventario.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(searchResults.inventario), "Cerdanya");
             if (searchResults.of_company && searchResults.of_company.data.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(searchResults.of_company.data), `${searchResults.of_company.name} (OF)`);
             (searchResults.others || []).forEach(c => { if(c.data.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(c.data), c.name); });
-            if (searchResults.sonepar.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(searchResults.sonepar), "Sonepar");
             if (searchResults.addedStock.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(searchResults.addedStock), "Dinamico");
             XLSX.writeFile(wb, "Stock_Findly_2.xlsx");
         });
@@ -516,8 +495,6 @@
             trackRefs(searchResults.inventario);
             if (searchResults.of_company) trackRefs(searchResults.of_company.data);
             (searchResults.others || []).forEach(c => trackRefs(c.data));
-            trackRefs(searchResults.sonepar);
-            trackRefs(searchResults.sti);
             trackRefs(searchResults.addedStock);
 
             doc.setFont("helvetica", "bold");
@@ -567,7 +544,7 @@
                     didParseCell: (cellData) => {
                         if (cellData.section === 'body' && cellData.row.raw) {
                             const ref = String(cellData.row.raw[0]).trim().toUpperCase();
-                            if (duplicateRefs.has(ref)) {
+                            if (!isSti && duplicateRefs.has(ref)) {
                                 cellData.cell.styles.fillColor = highlightColor;
                                 cellData.cell.styles.textColor = highlightTextColor;
                                 cellData.cell.styles.fontStyle = 'bold';
@@ -585,8 +562,7 @@
             if (searchResults.of_company && searchResults.of_company.name) {
                 maxY = Math.max(maxY, renderTable(`Stock ${searchResults.of_company.name} (OF)`, searchResults.of_company.data, paddingX + colWidth + gap, nextY, colWidth, accentColor));
             }
-            maxY = Math.max(maxY, renderTable("Stock Sonepar", searchResults.sonepar, paddingX + (colWidth + gap) * 2, nextY, colWidth, [15, 118, 110]));
-            maxY = Math.max(maxY, renderTable("Stock STI", searchResults.sti, paddingX + (colWidth + gap) * 3, nextY, 30, [21, 128, 61], true));
+            maxY = Math.max(maxY, renderTable("Stock STI", searchResults.sti, paddingX + (colWidth + gap) * 2, nextY, 30, [21, 128, 61], true));
 
             currentY = maxY;
             nextY = currentY;

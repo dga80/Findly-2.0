@@ -524,26 +524,35 @@ document.getElementById('exportPdfBtn').addEventListener('click', () => {
     const colWidth = 65;
     const gap = 5;
 
-    const renderTable = (title, data, x, y, width, color = primaryColor, isSti = false) => {
+    const renderTable = (title, data, x, y, width, color = primaryColor, isSti = false, isCerdanya = false) => {
         doc.setFontSize(10);
         doc.setTextColor(...color);
         doc.text(title, x, y - 2);
+
+        let headHeaders = [['Ref', 'Stock', 'Enc', 'Obs']];
+        let bodyRows = (data || []).map(item => [item.Referencia, item.Cantidad, item.CantEncargo || '-', '']);
+
+        if (isSti) {
+            headHeaders = [['Ref']];
+            bodyRows = (data || []).map(ref => [ref]);
+        } else if (isCerdanya) {
+            headHeaders = [['Ref', 'Ubi', 'Stock', 'Enc', 'Obs']];
+            bodyRows = (data || []).map(item => [item.Referencia, item.Ubicacion || '-', item.Cantidad, item.CantEncargo || '-', '']);
+        }
 
         doc.autoTable({
             startY: y,
             margin: { left: x },
             tableWidth: width,
-            head: isSti ? [['Ref']] : [['Ref', 'Stock', 'Enc', 'Obs']],
-            body: isSti 
-                ? (data || []).map(ref => [ref])
-                : (data || []).map(item => [item.Referencia, item.Cantidad, item.CantEncargo || '-', '']),
+            head: headHeaders,
+            body: bodyRows,
             theme: 'grid',
             headStyles: { fillColor: color, textColor: 255, fontSize: 7, cellPadding: 1 },
             styles: { fontSize: 6.5, cellPadding: 0.8 },
             didParseCell: (cellData) => {
                 if (cellData.section === 'body' && cellData.row.raw) {
                     const ref = String(cellData.row.raw[0]).trim().toUpperCase();
-                    if (duplicateRefs.has(ref)) {
+                    if (!isSti && duplicateRefs.has(ref)) {
                         cellData.cell.styles.fillColor = highlightColor;
                         cellData.cell.styles.textColor = highlightTextColor;
                         cellData.cell.styles.fontStyle = 'bold';
@@ -557,7 +566,7 @@ document.getElementById('exportPdfBtn').addEventListener('click', () => {
     let nextY = currentY;
     let maxY = nextY;
 
-    maxY = Math.max(maxY, renderTable("Inventario Cerdanya", searchResults.inventario, paddingX, nextY, colWidth, primaryColor));
+    maxY = Math.max(maxY, renderTable("Inventario Cerdanya", searchResults.inventario, paddingX, nextY, colWidth, primaryColor, false, true));
     if (searchResults.of_company && searchResults.of_company.name) {
         maxY = Math.max(maxY, renderTable(`Stock ${searchResults.of_company.name} (OF)`, searchResults.of_company.data, paddingX + colWidth + gap, nextY, colWidth, accentColor));
     }

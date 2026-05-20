@@ -17,8 +17,41 @@
 <body>
     <div class="container">
         <header>
-            <h1>Findly 2.0</h1>
-            <p>Buscador de stock multi-empresa</p>
+            <div class="logo-container">
+                <svg class="app-logo" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="3" y="3" width="18" height="18" rx="4" stroke="url(#logo-grad)" stroke-width="2.5" fill="none"/>
+                    <circle cx="12" cy="12" r="4" stroke="url(#logo-grad)" stroke-width="2.5"/>
+                    <line x1="15" y1="15" x2="19" y2="19" stroke="url(#logo-grad)" stroke-width="2.5" stroke-linecap="round"/>
+                    <defs>
+                        <linearGradient id="logo-grad" x1="3" y1="3" x2="21" y2="21" gradientUnits="userSpaceOnUse">
+                            <stop offset="0%" stop-color="#2563eb"/>
+                            <stop offset="100%" stop-color="#10b981"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <div class="logo-text">
+                    <h1>Findly <span class="version-badge">2.0</span></h1>
+                    <p>Buscador de stock multi-empresa</p>
+                </div>
+            </div>
+            <button id="themeToggleBtn" class="btn-theme-toggle" aria-label="Cambiar tema">
+                <!-- Moon Icon -->
+                <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                </svg>
+                <!-- Sun Icon -->
+                <svg class="icon-sun hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="5"></circle>
+                    <line x1="12" y1="1" x2="12" y2="3"></line>
+                    <line x1="12" y1="21" x2="12" y2="23"></line>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                    <line x1="1" y1="12" x2="3" y2="12"></line>
+                    <line x1="21" y1="12" x2="23" y2="12"></line>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                </svg>
+            </button>
         </header>
 
         <!-- Panel de Estado de Almacenes (Monitor de Red) -->
@@ -60,6 +93,10 @@
                             </select>
                         </div>
                         <textarea id="refInput" placeholder="Pega aquí el listado de referencias (una por línea)..."></textarea>
+                        <div id="refHelperBadge" class="ref-helper-badge hidden">
+                            <span class="ref-helper-icon">✨</span>
+                            <span class="ref-helper-message">Formato de referencias corregido y limpio</span>
+                        </div>
                     </div>
 
                     <div id="uploadInputContainer" class="input-container">
@@ -278,6 +315,76 @@
     </div>
     <script>
         // LÓGICA COMPLETA INTEGRADA
+
+        // Tema Oscuro / Claro
+        const themeToggleBtn = document.getElementById('themeToggleBtn');
+        const iconMoon = document.querySelector('#themeToggleBtn .icon-moon');
+        const iconSun = document.querySelector('#themeToggleBtn .icon-sun');
+
+        function applyTheme(theme) {
+            if (theme === 'dark') {
+                document.body.classList.add('dark-theme');
+                iconMoon.classList.add('hidden');
+                iconSun.classList.remove('hidden');
+            } else {
+                document.body.classList.remove('dark-theme');
+                iconSun.classList.add('hidden');
+                iconMoon.classList.remove('hidden');
+            }
+        }
+
+        // Cargar preferencia inicial
+        const savedTheme = localStorage.getItem('findly_theme') || 
+            (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        applyTheme(savedTheme);
+
+        themeToggleBtn.addEventListener('click', () => {
+            const isDark = document.body.classList.contains('dark-theme');
+            const newTheme = isDark ? 'light' : 'dark';
+            localStorage.setItem('findly_theme', newTheme);
+            applyTheme(newTheme);
+        });
+
+        // Limpieza y formateo automático de referencias
+        function cleanReferencesInput() {
+            const textarea = document.getElementById('refInput');
+            const originalVal = textarea.value;
+            if (!originalVal.trim()) return;
+
+            // Reemplazar comas, puntos y comas, tabuladores y barras verticales por saltos de línea
+            let cleaned = originalVal
+                .replace(/[,;\t|]/g, '\n')
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line !== '');
+
+            // Eliminar duplicados para mantener la lista limpia
+            cleaned = [...new Set(cleaned)];
+
+            const newVal = cleaned.join('\n');
+
+            if (newVal !== originalVal) {
+                textarea.value = newVal;
+                
+                // Mostrar badge de feedback
+                const badge = document.getElementById('refHelperBadge');
+                if (badge) {
+                    badge.classList.remove('hidden');
+                    
+                    if (window.badgeTimeout) clearTimeout(window.badgeTimeout);
+                    window.badgeTimeout = setTimeout(() => {
+                        badge.classList.add('hidden');
+                    }, 3500);
+                }
+            }
+        }
+
+        const refInput = document.getElementById('refInput');
+        refInput.addEventListener('paste', () => {
+            setTimeout(cleanReferencesInput, 50);
+        });
+        refInput.addEventListener('blur', cleanReferencesInput);
+
         let searchResults = { inventario: [], sonepar: [], sti: [], addedStock: [], of_company: { name: '', data: [] }, others: [] };
         let selectedFile = null;
         let addedStockFile = null;

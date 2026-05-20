@@ -7,7 +7,17 @@
     --card-bg: #ffffff;
     --text-color: #1e293b;
     --border-color: #e2e8f0;
-    --header-gradient: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    --input-bg: #ffffff;
+    --selector-bg: #f1f5f9;
+}
+
+body.dark-theme {
+    --bg-color: #0f172a;
+    --card-bg: #1e293b;
+    --text-color: #f8fafc;
+    --border-color: #334155;
+    --input-bg: #0f172a;
+    --selector-bg: #1e293b;
 }
 
 * {
@@ -21,6 +31,7 @@ body {
     background-color: var(--bg-color);
     color: var(--text-color);
     line-height: 1.5;
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
 .container {
@@ -30,25 +41,58 @@ body {
 }
 
 header {
-    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     margin-bottom: 2rem;
-    padding: 2rem;
-    background: var(--header-gradient);
-    border-radius: 1rem;
-    color: white;
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    padding: 1rem 0;
+    background: none;
+    box-shadow: none;
+    color: var(--text-color);
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+}
+
+.app-logo {
+    width: 46px;
+    height: 46px;
+    flex-shrink: 0;
+}
+
+.logo-text {
+    display: flex;
+    flex-direction: column;
 }
 
 header h1 {
-    font-size: 2.5rem;
+    font-size: 1.85rem;
     font-weight: 700;
-    margin-bottom: 0.5rem;
+    margin: 0;
+    line-height: 1.1;
     letter-spacing: -0.025em;
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.version-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: rgba(37, 99, 235, 0.1);
+    color: var(--primary-color);
+    padding: 0.15rem 0.45rem;
+    border-radius: 0.5rem;
 }
 
 header p {
-    opacity: 0.9;
-    font-size: 1.1rem;
+    font-size: 0.88rem;
+    color: #64748b;
+    margin-top: 0.25rem;
 }
 
 .input-section {
@@ -912,4 +956,150 @@ td {
         padding-left: 0;
         padding-top: 1.5rem;
     }
+}
+
+/* --- MEJORAS VISUALES: TEMA OSCURO Y MICROINTERACCIONES --- */
+
+/* Transiciones de color globales para elementos interactivos y tarjetas */
+.input-section, 
+.status-panel, 
+.legend-container, 
+textarea, 
+select, 
+th, 
+td, 
+.of-selector-container, 
+.btn-sync, 
+.file-drop-zone, 
+.history-item, 
+.status-item,
+.result-card,
+.legend-item,
+.btn-theme-toggle {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+/* Modo Oscuro - Reajustes específicos para fondos y bordes */
+body.dark-theme th {
+    background-color: var(--border-color);
+    color: var(--text-color);
+}
+
+body.dark-theme .legend-container {
+    background: var(--card-bg);
+}
+
+body.dark-theme .file-drop-zone {
+    background: var(--input-bg);
+}
+
+body.dark-theme .history-empty {
+    background: var(--bg-color);
+}
+
+body.dark-theme .btn-sync {
+    background: var(--selector-bg);
+    color: var(--text-color);
+}
+
+body.dark-theme .btn-sync:hover {
+    background: var(--border-color);
+}
+
+/* Tarjetas especiales de stock en Modo Oscuro */
+body.dark-theme .sti-card {
+    border-color: #166534;
+    background-color: rgba(22, 101, 52, 0.15);
+}
+
+body.dark-theme .dynamic-card {
+    border-color: #075985;
+    background-color: rgba(7, 89, 133, 0.15);
+}
+
+body.dark-theme .of-card {
+    background-color: rgba(37, 99, 235, 0.12) !important;
+    box-shadow: 0 12px 24px -5px rgba(37, 99, 235, 0.4);
+}
+
+/* Ajustes a los campos de texto e inputs en Modo Oscuro */
+body.dark-theme textarea,
+body.dark-theme select,
+body.dark-theme .of-select {
+    background-color: var(--input-bg);
+    color: var(--text-color);
+}
+
+body.dark-theme .of-select:hover {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+/* Historial de búsquedas en Modo Oscuro */
+body.dark-theme .history-item {
+    background: #1e293b;
+}
+
+body.dark-theme .history-item:hover {
+    background: rgba(37, 99, 235, 0.1);
+    border-color: var(--primary-color);
+}
+
+body.dark-theme .history-item-filename-title {
+    color: #cbd5e1;
+}
+
+body.dark-theme .history-item-manual-title {
+    color: #94a3b8;
+}
+
+body.dark-theme .status-item {
+    background: #1e293b;
+}
+
+/* Botón del selector de tema */
+.btn-theme-toggle {
+    background: var(--selector-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.btn-theme-toggle:hover {
+    background: var(--border-color);
+    transform: scale(1.08);
+}
+
+.btn-theme-toggle svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* Badge del corrector de formato automático */
+.ref-helper-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    color: #10b981;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    padding: 0.25rem 0.6rem;
+    border-radius: 0.25rem;
+    margin-top: -0.5rem;
+    margin-bottom: 1rem;
+    font-weight: 500;
+}
+
+body.dark-theme .ref-helper-badge {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.3);
+    color: #34d399;
 }

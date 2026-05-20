@@ -453,7 +453,8 @@
 
                 // Guardar en historial
                 const searchType = isManual ? 'Manual' : 'Excel';
-                addSearchToHistory(searchType, ofCompany, currentInputData, currentAddedStockData);
+                const fileName = (!isManual && selectedFile) ? selectedFile.name : null;
+                addSearchToHistory(searchType, ofCompany, currentInputData, currentAddedStockData, fileName);
             } catch (error) {
                 alert(error.message || "Error en la búsqueda");
             } finally {
@@ -754,7 +755,7 @@
             }
         }
 
-        function addSearchToHistory(type, company, references, addedStock = []) {
+        function addSearchToHistory(type, company, references, addedStock = [], fileName = null) {
             const history = getHistory();
             const now = new Date();
             const dateStr = now.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + ' ' + 
@@ -768,7 +769,8 @@
                 company: company,
                 refCount: references.length,
                 references: references, // Guardamos la lista de objetos {reference, quantity}
-                addedStock: addedStock
+                addedStock: addedStock,
+                fileName: fileName // Nombre del archivo Excel (null si es manual)
             };
             
             // Evitar duplicados idénticos en el historial
@@ -805,6 +807,7 @@
                             <span class="history-item-count"><strong>${item.refCount}</strong> refs</span>
                             <span class="history-item-company">${item.company}</span>
                         </div>
+                        ${item.fileName ? `<div class="history-item-filename" title="${item.fileName}">📄 ${item.fileName}</div>` : ''}
                         <div class="history-item-footer">
                             <button class="btn-delete-history" data-delete-id="${item.id}">
                                 <svg class="icon-delete" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px; height:12px; vertical-align: middle; margin-right: 2px;">

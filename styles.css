@@ -643,6 +643,20 @@ td {
     font-size: 0.7rem;
 }
 
+.history-item-filename {
+    font-size: 0.68rem;
+    color: #475569;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.3rem;
+    padding: 0.15rem 0.45rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    margin-top: 0.1rem;
+}
+
 .history-item-footer {
     display: flex;
     justify-content: flex-end;

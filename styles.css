@@ -629,9 +629,22 @@ td {
     margin-top: 0.15rem;
 }
 
-.history-item-count {
+.history-item-filename-title {
+    font-size: 0.78rem;
+    font-weight: 600;
     color: var(--text-color);
-    font-size: 0.75rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    display: block;
+}
+
+.history-item-manual-title {
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: #64748b;
+    display: block;
 }
 
 .history-item-company {

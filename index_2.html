@@ -309,6 +309,20 @@
                 selectedFile = e.target.files[0];
                 document.querySelector('#fileInfo .file-name').textContent = selectedFile.name;
                 document.getElementById('fileInfo').classList.remove('hidden');
+
+                // Automate priority OF selection based on filename prefix (case-insensitive)
+                const firstChar = selectedFile.name.charAt(0).toUpperCase();
+                let detectedCompany = null;
+                if (firstChar === 'A') detectedCompany = 'AYC';
+                else if (firstChar === 'L') detectedCompany = 'LOESS';
+                else if (firstChar === 'C') detectedCompany = 'CESA';
+                else if (firstChar === 'M') detectedCompany = 'MES';
+
+                if (detectedCompany) {
+                    document.getElementById('ofCompanyUpload').value = detectedCompany;
+                    document.getElementById('ofCompany').value = detectedCompany;
+                    updateOfUI();
+                }
             }
         });
 
@@ -796,18 +810,18 @@
             }
             
             listEl.innerHTML = history.map(item => {
-                const typeIcon = item.type === 'Manual' ? '⌨' : '📊';
                 return `
                     <div class="history-item" data-id="${item.id}">
                         <div class="history-item-header">
                             <span class="history-item-date">${item.dateStr}</span>
-                            <span class="history-item-type">${typeIcon} ${item.type}</span>
-                        </div>
-                        <div class="history-item-body">
-                            <span class="history-item-count"><strong>${item.refCount}</strong> refs</span>
                             <span class="history-item-company">${item.company}</span>
                         </div>
-                        ${item.fileName ? `<div class="history-item-filename" title="${item.fileName}">📄 ${item.fileName}</div>` : ''}
+                        <div class="history-item-body">
+                            ${item.fileName 
+                                ? `<span class="history-item-filename-title" title="${item.fileName}">📄 ${item.fileName}</span>`
+                                : `<span class="history-item-manual-title">⌨ Búsqueda Manual</span>`
+                            }
+                        </div>
                         <div class="history-item-footer">
                             <button class="btn-delete-history" data-delete-id="${item.id}">
                                 <svg class="icon-delete" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px; height:12px; vertical-align: middle; margin-right: 2px;">

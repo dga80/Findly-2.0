@@ -450,6 +450,10 @@
                 renderTables();
                 document.getElementById('exportStockBtn').disabled = false;
                 document.getElementById('exportPdfBtn').disabled = false;
+
+                // Guardar en historial
+                const searchType = isManual ? 'Manual' : 'Excel';
+                addSearchToHistory(searchType, ofCompany, currentInputData, currentAddedStockData);
             } catch (error) {
                 alert(error.message || "Error en la búsqueda");
             } finally {
@@ -637,6 +641,256 @@
                 : "Informe_Stock.pdf";
             doc.save(fileName);
         });
+
+        // --- SISTEMA DE MONITOREO DE STOCK (MONITOR DE RED) ---
+        async function loadNetworkStatus() {
+            try {
+                const res = await fetch('http://localhost:5000/status');
+                if (!res.ok) throw new Error("Error en servidor");
+                const data = await res.json();
+                
+                let offlineCount = 0;
+                let cacheCount = 0;
+                let onlineCount = 0;
+                
+                const processStatus = (name, item) => {
+                    let badgeClass = 'offline';
+                    if (item.status === 'En línea') {
+                        badgeClass = 'online';
+                        onlineCount++;
+                    } else if (item.status.includes('Caché')) {
+                        badgeClass = 'offline-cache';
+                        cacheCount++;
+                    } else {
+                        offlineCount++;
+                    }
+                    
+                    let displayMtime = 'Nunca leído';
+                    if (item.mtime) {
+                        const d = new Date(item.mtime * 1000);
+                        displayMtime = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    }
+                    
+                    return `
+                        <div class="status-item">
+                            <div class="status-info">
+                                <span class="status-name">${name}</span>
+                                <span class="status-meta" title="${item.path || ''}">Última sinc: ${displayMtime}</span>
+                            </div>
+                            <span class="status-badge ${badgeClass}">
+                                <span class="status-indicator-dot ${badgeClass}"></span>
+                                ${item.status}
+                            </span>
+                        </div>
+                    `;
+                };
+                
+                let gridHtml = '';
+                gridHtml += processStatus('Stock Cerdanya', data.inventario);
+                gridHtml += processStatus('Stock STI', data.sti);
+                
+                for (const [comp, info] of Object.entries(data.companies)) {
+                    gridHtml += processStatus(`Stock ${comp}`, info);
+                }
+                
+                document.getElementById('statusGrid').innerHTML = gridHtml;
+                
+                // Actualizar LED global
+                const globalLed = document.getElementById('globalStatusLed');
+                globalLed.className = 'status-indicator-dot';
+                if (offlineCount > 0) {
+                    globalLed.classList.add('offline');
+                } else if (cacheCount > 0) {
+                    globalLed.classList.add('offline-cache');
+                } else {
+                    globalLed.classList.add('online');
+                }
+            } catch (error) {
+                console.error("Error cargando estado:", error);
+                document.getElementById('statusGrid').innerHTML = `<div class="status-item" style="grid-column: 1/-1; color: #ef4444; text-align: center;">Error al conectar con el servidor de stock.</div>`;
+                const globalLed = document.getElementById('globalStatusLed');
+                globalLed.className = 'status-indicator-dot offline';
+            }
+        }
+
+        // Evento para limpiar caché (Sincronizar Stock)
+        document.getElementById('syncStockBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('syncStockBtn');
+            btn.classList.add('spinning');
+            btn.disabled = true;
+            try {
+                const res = await fetch('http://localhost:5000/reload_cache', { method: 'POST' });
+                if (!res.ok) throw new Error("Error en servidor");
+                const data = await res.json();
+                
+                // Pequeña notificación visual antes de recargar
+                alert(data.message || "Caché de stock borrada. Los archivos se volverán a escanear.");
+                await loadNetworkStatus();
+            } catch (error) {
+                alert("Error al sincronizar stock: " + error.message);
+            } finally {
+                btn.classList.remove('spinning');
+                btn.disabled = false;
+            }
+        });
+
+
+        // --- SISTEMA DE HISTORIAL DE BÚSQUEDAS (LOCAL STORAGE) ---
+        
+        function getHistory() {
+            try {
+                const h = localStorage.getItem('findly_history');
+                return h ? JSON.parse(h) : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveHistory(historyList) {
+            try {
+                localStorage.setItem('findly_history', JSON.stringify(historyList.slice(0, 5)));
+            } catch (e) {
+                console.error("Error al guardar historial:", e);
+            }
+        }
+
+        function addSearchToHistory(type, company, references, addedStock = []) {
+            const history = getHistory();
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + ' ' + 
+                            now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+            
+            const newEntry = {
+                id: 'hist_' + now.getTime(),
+                timestamp: now.getTime(),
+                dateStr: dateStr,
+                type: type, // 'Manual' | 'Excel'
+                company: company,
+                refCount: references.length,
+                references: references, // Guardamos la lista de objetos {reference, quantity}
+                addedStock: addedStock
+            };
+            
+            // Evitar duplicados idénticos en el historial
+            const filtered = history.filter(item => {
+                const sameRefs = JSON.stringify(item.references) === JSON.stringify(references);
+                const sameComp = item.company === company;
+                return !(sameRefs && sameComp);
+            });
+            
+            filtered.unshift(newEntry);
+            saveHistory(filtered);
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const history = getHistory();
+            const listEl = document.getElementById('historyList');
+            if (!listEl) return;
+            
+            if (history.length === 0) {
+                listEl.innerHTML = '<div class="history-empty">No hay búsquedas recientes</div>';
+                return;
+            }
+            
+            listEl.innerHTML = history.map(item => {
+                const typeIcon = item.type === 'Manual' ? '⌨' : '📊';
+                return `
+                    <div class="history-item" data-id="${item.id}">
+                        <div class="history-item-header">
+                            <span class="history-item-date">${item.dateStr}</span>
+                            <span class="history-item-type">${typeIcon} ${item.type}</span>
+                        </div>
+                        <div class="history-item-body">
+                            <span class="history-item-count"><strong>${item.refCount}</strong> refs</span>
+                            <span class="history-item-company">${item.company}</span>
+                        </div>
+                        <div class="history-item-footer">
+                            <button class="btn-delete-history" data-delete-id="${item.id}">
+                                <svg class="icon-delete" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px; height:12px; vertical-align: middle; margin-right: 2px;">
+                                    <polyline points="3 6 5 6 21 6"/>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                </svg>
+                                Eliminar
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            // Clic en item para cargar
+            listEl.querySelectorAll('.history-item').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    if (e.target.closest('.btn-delete-history')) return;
+                    const id = el.getAttribute('data-id');
+                    loadHistoryItem(id);
+                });
+            });
+            
+            // Eliminar item
+            listEl.querySelectorAll('.btn-delete-history').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const id = el.getAttribute('data-delete-id');
+                    deleteHistoryItem(id);
+                });
+            });
+        }
+
+        function loadHistoryItem(id) {
+            const history = getHistory();
+            const item = history.find(entry => entry.id === id);
+            if (!item) return;
+            
+            // Cambiar visualmente a pestaña manual para ver la lista de referencias
+            document.getElementById('manualTab').click();
+            
+            // Rellenar referencias en el textarea (una por línea)
+            const refsText = item.references.map(r => {
+                if (typeof r === 'string') return r;
+                return r.reference + (r.quantity > 1 ? `,${r.quantity}` : '');
+            }).join('\n');
+            
+            document.getElementById('refInput').value = refsText;
+            
+            // Seleccionar la empresa prioritaria
+            document.getElementById('ofCompany').value = item.company;
+            document.getElementById('ofCompanyUpload').value = item.company;
+            
+            // Cargar stock dinámico si existía en la búsqueda
+            if (item.addedStock && item.addedStock.length > 0) {
+                currentAddedStockData = item.addedStock;
+                document.querySelector('#addedStockInfo .file-name').textContent = `Restaurado (${item.addedStock.length} refs)`;
+                document.getElementById('addedStockInfo').classList.remove('hidden');
+            } else {
+                currentAddedStockData = [];
+                document.getElementById('addedStockInfo').classList.add('hidden');
+            }
+            
+            updateOfUI();
+            
+            // Desplazar la vista suavemente
+            document.getElementById('searchBtn').scrollIntoView({ behavior: 'smooth' });
+            
+            // Dar feedback visual pulsando el botón automáticamente
+            const btn = document.getElementById('searchBtn');
+            btn.style.transform = 'scale(0.97)';
+            setTimeout(() => { btn.style.transform = ''; }, 150);
+        }
+
+        function deleteHistoryItem(id) {
+            const history = getHistory();
+            const filtered = history.filter(item => item.id !== id);
+            saveHistory(filtered);
+            renderHistory();
+        }
+
+        // --- INICIALIZACIÓN ---
+        loadNetworkStatus();
+        renderHistory();
+        
+        // Refrescar estado de red automáticamente cada 30 segundos
+        setInterval(loadNetworkStatus, 30000);
     </script>
 </body>
 </html>

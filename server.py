@@ -589,6 +589,64 @@ def search():
         'addedStock': res_added
     })
 
+def get_file_status(path, cache_obj):
+    exists = False
+    try:
+        exists = os.path.exists(path)
+    except Exception:
+        pass
+    
+    if exists:
+        return {
+            "path": path,
+            "status": "En línea",
+            "exists": True,
+            "mtime": cache_obj.get("mtime")
+        }
+    else:
+        if cache_obj.get("df") is not None:
+            return {
+                "path": path,
+                "status": "Caché local (Red caída)",
+                "exists": False,
+                "mtime": cache_obj.get("mtime")
+            }
+        else:
+            return {
+                "path": path,
+                "status": "Desconectado (Sin datos)",
+                "exists": False,
+                "mtime": None
+            }
+
+@app.route('/status', methods=['GET'])
+def get_status():
+    global INVENTARIO_CACHE, SONEPAR_CACHE, STI_CACHE, COMPANY_CACHE
+    
+    company_status = {}
+    for comp, path in COMPANY_PATHS.items():
+        cache_obj = COMPANY_CACHE.get(comp, {"mtime": None, "df": None})
+        company_status[comp] = get_file_status(path, cache_obj)
+        
+    return jsonify({
+        "inventario": get_file_status(PATH_INVENTARIO, INVENTARIO_CACHE),
+        "sti": get_file_status(PATH_STI, STI_CACHE),
+        "companies": company_status
+    })
+
+@app.route('/reload_cache', methods=['POST'])
+def reload_cache():
+    global INVENTARIO_CACHE, SONEPAR_CACHE, STI_CACHE, COMPANY_CACHE
+    print("🔄 Limpiando caché a petición del cliente...")
+    
+    INVENTARIO_CACHE = {"mtime": None, "df": None}
+    SONEPAR_CACHE = {"mtime": None, "df": None}
+    STI_CACHE = {"mtime": None, "df": None}
+    COMPANY_CACHE.clear()
+    
+    return jsonify({"message": "Caché de stock limpiada correctamente. Los archivos se volverán a leer en la siguiente búsqueda."})
+
 if __name__ == '__main__':
     app.run(host='127.0.0.1', debug=True, port=5000)
+
 

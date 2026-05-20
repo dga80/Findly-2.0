@@ -1,4 +1,5 @@
 import os
+import re
 import pandas as pd
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -24,8 +25,34 @@ COMPANY_PATHS = {
     'LOESS': PATH_LOESS
 }
 
+# --- SISTEMA DE CACHÉ INTELIGENTE Y BÚSQUEDA ROBUSTA ---
+INVENTARIO_CACHE = {"mtime": None, "df": None}
+SONEPAR_CACHE = {"mtime": None, "df": None}
+STI_CACHE = {"mtime": None, "df": None}
+COMPANY_CACHE = {} # Estructura: {company_name: {"mtime": mtime, "df": df}}
+
+def clean_ref(ref):
+    if pd.isna(ref):
+        return ""
+    ref_str = str(ref).strip().upper()
+    return re.sub(r'[^A-Z0-9]', '', ref_str)
+
 def read_inventario():
+    global INVENTARIO_CACHE
     try:
+        if not os.path.exists(PATH_INVENTARIO):
+            print(f"⚠ Archivo no encontrado para Inventario Cerdanya: {PATH_INVENTARIO}")
+            if INVENTARIO_CACHE["df"] is not None:
+                print("🚀 Usando copia en caché de Inventario Cerdanya (red caída/inaccesible)")
+                return INVENTARIO_CACHE["df"]
+            return pd.DataFrame(columns=['Ubicacion', 'Referencia', 'Cantidad'])
+
+        current_mtime = os.path.getmtime(PATH_INVENTARIO)
+        if INVENTARIO_CACHE["mtime"] == current_mtime and INVENTARIO_CACHE["df"] is not None:
+            print("🚀 Usando caché en memoria para Inventario Cerdanya")
+            return INVENTARIO_CACHE["df"]
+
+        print("📥 Leyendo Inventario Cerdanya desde disco/red...")
         # Detectar columnas dinámicamente por palabras clave
         df_header = pd.read_excel(PATH_INVENTARIO, nrows=0)
         
@@ -89,15 +116,36 @@ def read_inventario():
         df['Ubicacion'] = df['Ubicacion'].fillna('')
         df = df.replace([float('inf'), float('-inf')], 0)
         
+        # Guardar en caché
+        INVENTARIO_CACHE["mtime"] = current_mtime
+        INVENTARIO_CACHE["df"] = df
         return df
     except Exception as e:
         print(f"Error reading Inventario: {e}")
         import traceback
         traceback.print_exc()
+        if INVENTARIO_CACHE["df"] is not None:
+            print("🚀 Usando copia en caché de Inventario Cerdanya debido al error")
+            return INVENTARIO_CACHE["df"]
         return pd.DataFrame(columns=['Ubicacion', 'Referencia', 'Cantidad'])
 
+
 def read_sonepar():
+    global SONEPAR_CACHE
     try:
+        if not os.path.exists(PATH_SONEPAR):
+            print(f"⚠ Archivo no encontrado para Sonepar: {PATH_SONEPAR}")
+            if SONEPAR_CACHE["df"] is not None:
+                print("🚀 Usando copia en caché de Sonepar (red caída/inaccesible)")
+                return SONEPAR_CACHE["df"]
+            return pd.DataFrame(columns=['Referencia', 'Empresa', 'Cantidad'])
+
+        current_mtime = os.path.getmtime(PATH_SONEPAR)
+        if SONEPAR_CACHE["mtime"] == current_mtime and SONEPAR_CACHE["df"] is not None:
+            print("🚀 Usando caché en memoria para Sonepar")
+            return SONEPAR_CACHE["df"]
+
+        print("📥 Leyendo Sonepar desde disco/red...")
         # Primero leemos las cabeceras para identificar los nombres de las columnas
         df_header = pd.read_excel(PATH_SONEPAR, nrows=0)
 
@@ -161,22 +209,38 @@ def read_sonepar():
 
         print(f"✓ Archivo Sonepar leído correctamente: {len(result)} registros encontrados")
 
+        SONEPAR_CACHE["mtime"] = current_mtime
+        SONEPAR_CACHE["df"] = result
         return result
 
     except Exception as e:
         print(f"❌ Error reading Sonepar: {e}")
         import traceback
         traceback.print_exc()
+        if SONEPAR_CACHE["df"] is not None:
+            print("🚀 Usando copia en caché de Sonepar debido al error")
+            return SONEPAR_CACHE["df"]
         return pd.DataFrame(columns=['Referencia', 'Empresa', 'Cantidad'])
 
 
+
 def read_company_file(path, company_name):
-    """Lector genérico para archivos de empresas CESA, MES, AYC, LOESS"""
+    """Lector genérico para archivos de empresas CESA, MES, AYC, LOESS con soporte de caché"""
+    global COMPANY_CACHE
     try:
         if not os.path.exists(path):
             print(f"⚠ Archivo no encontrado para {company_name}: {path}")
+            if company_name in COMPANY_CACHE and COMPANY_CACHE[company_name]["df"] is not None:
+                print(f"🚀 Usando copia en caché de {company_name} (red caída/inaccesible)")
+                return COMPANY_CACHE[company_name]["df"]
             return pd.DataFrame(columns=['Referencia', 'Empresa', 'Cantidad'])
 
+        current_mtime = os.path.getmtime(path)
+        if company_name in COMPANY_CACHE and COMPANY_CACHE[company_name]["mtime"] == current_mtime and COMPANY_CACHE[company_name]["df"] is not None:
+            print(f"🚀 Usando caché en memoria para {company_name}")
+            return COMPANY_CACHE[company_name]["df"]
+
+        print(f"📥 Leyendo {company_name} desde disco/red...")
         df_header = pd.read_excel(path, nrows=0)
         
         # Lógica similar a Sonepar para detectar columnas
@@ -216,15 +280,36 @@ def read_company_file(path, company_name):
         result['Cantidad'] = pd.to_numeric(result['Cantidad'], errors='coerce').fillna(0)
         
         print(f"✓ Archivo {company_name} leído: {len(result)} registros")
+        
+        # Guardar en caché
+        COMPANY_CACHE[company_name] = {"mtime": current_mtime, "df": result}
         return result
     except Exception as e:
         print(f"❌ Error reading {company_name}: {e}")
+        if company_name in COMPANY_CACHE and COMPANY_CACHE[company_name]["df"] is not None:
+            print(f"🚀 Usando copia en caché de {company_name} debido al error")
+            return COMPANY_CACHE[company_name]["df"]
         return pd.DataFrame(columns=['Referencia', 'Empresa', 'Cantidad'])
 
 
+
 def read_sti():
-    """Lee el archivo ZOE STI.xlsx y extrae la columna 'código' dinámicamente."""
+    """Lee el archivo ZOE STI.xlsx y extrae la columna 'código' dinámicamente con soporte de caché."""
+    global STI_CACHE
     try:
+        if not os.path.exists(PATH_STI):
+            print(f"⚠ Archivo no encontrado para STI: {PATH_STI}")
+            if STI_CACHE["df"] is not None:
+                print("🚀 Usando copia en caché de STI (red caída/inaccesible)")
+                return STI_CACHE["df"]
+            return pd.DataFrame(columns=['Referencia'])
+
+        current_mtime = os.path.getmtime(PATH_STI)
+        if STI_CACHE["mtime"] == current_mtime and STI_CACHE["df"] is not None:
+            print("🚀 Usando caché en memoria para STI")
+            return STI_CACHE["df"]
+
+        print("📥 Leyendo STI desde disco/red...")
         df_header = pd.read_excel(PATH_STI, nrows=0)
 
         # Buscar columna "código" dinámicamente
@@ -247,13 +332,21 @@ def read_sti():
         result = result[result['Referencia'] != 'nan']
 
         print(f"✓ Archivo STI leído correctamente: {len(result)} registros encontrados")
+        
+        # Guardar en caché
+        STI_CACHE["mtime"] = current_mtime
+        STI_CACHE["df"] = result
         return result
 
     except Exception as e:
         print(f"❌ Error reading STI: {e}")
         import traceback
         traceback.print_exc()
+        if STI_CACHE["df"] is not None:
+            print("🚀 Usando copia en caché de STI debido al error")
+            return STI_CACHE["df"]
         return pd.DataFrame(columns=['Referencia'])
+
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -395,76 +488,97 @@ def search():
             'addedStock': []
         })
 
-    references_to_search = []
-    qty_map = {}
+    # Mapeo de búsqueda robusta
+    references_to_search_clean = []
+    clean_to_original_map = {}
+    qty_map_clean = {}
 
     for item in input_data:
         if isinstance(item, str):
-            ref = item.strip().upper()
-            qty = 0
+            ref = item.strip()
+            qty = 1
         else:
-            ref = str(item.get('reference', '')).strip().upper()
+            ref = str(item.get('reference', '')).strip()
             qty = item.get('quantity', 0)
         
         if ref:
-            references_to_search.append(ref)
-            qty_map[ref] = qty_map.get(ref, 0) + float(qty)
+            ref_clean = clean_ref(ref)
+            references_to_search_clean.append(ref_clean)
+            qty_map_clean[ref_clean] = qty_map_clean.get(ref_clean, 0) + float(qty)
+            if ref_clean not in clean_to_original_map:
+                clean_to_original_map[ref_clean] = []
+            clean_to_original_map[ref_clean].append(ref)
 
-    added_stock_map = {}
+    # Limpiar stock dinámico añadido manual
+    added_stock_map_clean = {}
     for item in added_stock_input:
-        ref = str(item.get('reference', '')).strip().upper()
-        qty = item.get('quantity', 0)
+        if isinstance(item, str):
+            ref = item.strip()
+            qty = 1
+        else:
+            ref = str(item.get('reference', '')).strip()
+            qty = item.get('quantity', 0)
         if ref:
-            added_stock_map[ref] = added_stock_map.get(ref, 0) + float(qty)
+            ref_clean = clean_ref(ref)
+            added_stock_map_clean[ref_clean] = added_stock_map_clean.get(ref_clean, 0) + float(qty)
 
     # 1. Leer Cerdanya
     df_inv = read_inventario()
-    df_inv['Referencia_UC'] = df_inv['Referencia'].astype(str).str.strip().str.upper()
-    res_inv = df_inv[df_inv['Referencia_UC'].isin(references_to_search)].to_dict('records')
+    df_inv['Referencia_Clean'] = df_inv['Referencia'].apply(clean_ref)
+    res_inv = df_inv[df_inv['Referencia_Clean'].isin(references_to_search_clean)].to_dict('records')
     res_inv = [item for item in res_inv if float(item.get('Cantidad', 0)) > 0]
     for item in res_inv:
-        item.pop('Referencia_UC', None)
-        item['CantEncargo'] = qty_map.get(str(item['Referencia']).strip().upper(), 0)
+        item.pop('Referencia_Clean', None)
+        ref_c = clean_ref(item['Referencia'])
+        item['CantEncargo'] = qty_map_clean.get(ref_c, 0)
 
     # 2. Leer OF Company
     df_of = read_company_file(COMPANY_PATHS.get(of_company), of_company)
-    df_of['Referencia_UC'] = df_of['Referencia'].astype(str).str.strip().str.upper()
-    res_of_data = df_of[df_of['Referencia_UC'].isin(references_to_search)].to_dict('records')
+    df_of['Referencia_Clean'] = df_of['Referencia'].apply(clean_ref)
+    res_of_data = df_of[df_of['Referencia_Clean'].isin(references_to_search_clean)].to_dict('records')
     res_of_data = [item for item in res_of_data if float(item.get('Cantidad', 0)) > 0]
     for item in res_of_data:
-        item.pop('Referencia_UC', None)
-        item['CantEncargo'] = qty_map.get(str(item['Referencia']).strip().upper(), 0)
+        item.pop('Referencia_Clean', None)
+        ref_c = clean_ref(item['Referencia'])
+        item['CantEncargo'] = qty_map_clean.get(ref_c, 0)
 
     # 3. Leer Otras Empresas
     other_companies = [c for c in COMPANY_PATHS.keys() if c != of_company]
     res_others = []
     for comp in other_companies:
         df_comp = read_company_file(COMPANY_PATHS.get(comp), comp)
-        df_comp['Referencia_UC'] = df_comp['Referencia'].astype(str).str.strip().str.upper()
-        comp_data = df_comp[df_comp['Referencia_UC'].isin(references_to_search)].to_dict('records')
+        df_comp['Referencia_Clean'] = df_comp['Referencia'].apply(clean_ref)
+        comp_data = df_comp[df_comp['Referencia_Clean'].isin(references_to_search_clean)].to_dict('records')
         comp_data = [item for item in comp_data if float(item.get('Cantidad', 0)) > 0]
         for item in comp_data:
-            item.pop('Referencia_UC', None)
-            item['CantEncargo'] = qty_map.get(str(item['Referencia']).strip().upper(), 0)
+            item.pop('Referencia_Clean', None)
+            ref_c = clean_ref(item['Referencia'])
+            item['CantEncargo'] = qty_map_clean.get(ref_c, 0)
         if comp_data:
             res_others.append({'name': comp, 'data': comp_data})
 
-
-
     # 5. Leer STI
     df_sti = read_sti()
-    df_sti['Referencia_UC'] = df_sti['Referencia'].astype(str).str.strip().str.upper()
-    res_sti_refs = list(set(df_sti[df_sti['Referencia_UC'].isin(references_to_search)]['Referencia'].tolist()))
+    df_sti['Referencia_Clean'] = df_sti['Referencia'].apply(clean_ref)
+    matched_sti_cleans = set(df_sti[df_sti['Referencia_Clean'].isin(references_to_search_clean)]['Referencia_Clean'].tolist())
+    
+    # Mapear de vuelta a las referencias originales que metió el usuario
+    res_sti_refs = []
+    for ref_c in matched_sti_cleans:
+        res_sti_refs.extend(clean_to_original_map.get(ref_c, []))
+    res_sti_refs = list(set(res_sti_refs))
 
     # 6. Stock Dinámico
     res_added = []
-    unique_refs_to_search = set(references_to_search)
-    for ref in unique_refs_to_search:
-        if ref in added_stock_map and added_stock_map[ref] > 0:
+    unique_refs_clean = set(references_to_search_clean)
+    for ref_c in unique_refs_clean:
+        if ref_c in added_stock_map_clean and added_stock_map_clean[ref_c] > 0:
+            # Obtener el nombre original de la búsqueda para conservar formato
+            ref_orig = clean_to_original_map.get(ref_c, [ref_c])[0]
             res_added.append({
-                'Referencia': ref,
-                'Cantidad': added_stock_map[ref],
-                'CantEncargo': qty_map.get(ref, 0)
+                'Referencia': ref_orig,
+                'Cantidad': added_stock_map_clean[ref_c],
+                'CantEncargo': qty_map_clean.get(ref_c, 0)
             })
 
     return jsonify({
@@ -477,3 +591,4 @@ def search():
 
 if __name__ == '__main__':
     app.run(host='127.0.0.1', debug=True, port=5000)
+

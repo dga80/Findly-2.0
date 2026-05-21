@@ -156,6 +156,9 @@
 
 
         <section class="results-section">
+            <div class="results-filter-container hidden" id="resultsFilterContainer">
+                <input type="text" id="resultsFilterInput" class="results-filter-input" placeholder="🔍 Filtrar resultados por referencia, empresa o ubicación...">
+            </div>
             <div class="legend-container">
                 <div class="legend-item">
                     <div class="legend-box common"></div>
@@ -310,8 +313,15 @@
                         </table>
                     </div>
                 </div>
-            </div>
         </section>
+        
+        <!-- Overlay de carga global -->
+        <div class="loading-overlay">
+            <div class="spinner-container">
+                <div class="loading-spinner"></div>
+                <p class="loading-text">Buscando stock en la red...</p>
+            </div>
+        </div>
     </div>
     <script>
         // LÓGICA COMPLETA INTEGRADA
@@ -410,27 +420,74 @@
 
         // File upload logic
         const fileInput = document.getElementById('fileInput');
+        const addedStockInput = document.getElementById('addedStockInput');
+
+        function handleMainFile(file) {
+            if (!file) return;
+            selectedFile = file;
+            document.querySelector('#fileInfo .file-name').textContent = selectedFile.name;
+            document.getElementById('fileInfo').classList.remove('hidden');
+
+            // Automate priority OF selection based on filename prefix (case-insensitive)
+            const firstChar = selectedFile.name.charAt(0).toUpperCase();
+            let detectedCompany = null;
+            if (firstChar === 'A') detectedCompany = 'AYC';
+            else if (firstChar === 'L') detectedCompany = 'LOESS';
+            else if (firstChar === 'C') detectedCompany = 'CESA';
+            else if (firstChar === 'M') detectedCompany = 'MES';
+
+            if (detectedCompany) {
+                document.getElementById('ofCompanyUpload').value = detectedCompany;
+                document.getElementById('ofCompany').value = detectedCompany;
+                updateOfUI();
+            }
+        }
+
+        function handleAddedStockFile(file) {
+            if (!file) return;
+            addedStockFile = file;
+            document.querySelector('#addedStockInfo .file-name').textContent = addedStockFile.name;
+            document.getElementById('addedStockInfo').classList.remove('hidden');
+        }
+
+        // Configurar Drag & Drop para zonas
+        function setupDragAndDrop(dropZoneId, fileInputId, onFileSelected) {
+            const dropZone = document.getElementById(dropZoneId);
+            const fileInput = document.getElementById(fileInputId);
+            
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, false);
+            });
+            
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => {
+                    dropZone.classList.add('drag-over');
+                }, false);
+            });
+            
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => {
+                    dropZone.classList.remove('drag-over');
+                }, false);
+            });
+            
+            dropZone.addEventListener('drop', (e) => {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                
+                if (files.length > 0) {
+                    fileInput.files = files; // Asignar al input
+                    onFileSelected(files[0]);
+                }
+            }, false);
+        }
+
         document.getElementById('dropZone').addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                selectedFile = e.target.files[0];
-                document.querySelector('#fileInfo .file-name').textContent = selectedFile.name;
-                document.getElementById('fileInfo').classList.remove('hidden');
-
-                // Automate priority OF selection based on filename prefix (case-insensitive)
-                const firstChar = selectedFile.name.charAt(0).toUpperCase();
-                let detectedCompany = null;
-                if (firstChar === 'A') detectedCompany = 'AYC';
-                else if (firstChar === 'L') detectedCompany = 'LOESS';
-                else if (firstChar === 'C') detectedCompany = 'CESA';
-                else if (firstChar === 'M') detectedCompany = 'MES';
-
-                if (detectedCompany) {
-                    document.getElementById('ofCompanyUpload').value = detectedCompany;
-                    document.getElementById('ofCompany').value = detectedCompany;
-                    updateOfUI();
-                }
-            }
+            if (e.target.files.length > 0) handleMainFile(e.target.files[0]);
         });
 
         document.getElementById('clearFile').addEventListener('click', (e) => {
@@ -440,14 +497,9 @@
             document.getElementById('fileInfo').classList.add('hidden');
         });
 
-        const addedStockInput = document.getElementById('addedStockInput');
         document.getElementById('addedStockDropZone').addEventListener('click', () => addedStockInput.click());
         addedStockInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                addedStockFile = e.target.files[0];
-                document.querySelector('#addedStockInfo .file-name').textContent = addedStockFile.name;
-                document.getElementById('addedStockInfo').classList.remove('hidden');
-            }
+            if (e.target.files.length > 0) handleAddedStockFile(e.target.files[0]);
         });
 
         document.getElementById('clearAddedStock').addEventListener('click', (e) => {
@@ -456,6 +508,10 @@
             addedStockInput.value = '';
             document.getElementById('addedStockInfo').classList.add('hidden');
         });
+
+        // Inicializar Drag & Drop
+        setupDragAndDrop('dropZone', 'fileInput', handleMainFile);
+        setupDragAndDrop('addedStockDropZone', 'addedStockInput', handleAddedStockFile);
 
         // Dynamic UI logic
         function updateOfUI() {
@@ -532,6 +588,8 @@
             const btn = document.getElementById('searchBtn');
             btn.textContent = "Procesando...";
             btn.disabled = true;
+            document.getElementById('resultsFilterInput').value = '';
+            document.getElementById('resultsFilterContainer').classList.add('hidden');
             document.body.classList.add('loading');
 
             try {
@@ -571,6 +629,9 @@
                 renderTables();
                 document.getElementById('exportStockBtn').disabled = false;
                 document.getElementById('exportPdfBtn').disabled = false;
+
+                // Desplazar vista al inicio de los resultados
+                document.querySelector('.results-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
                 // Guardar en historial
                 const searchType = isManual ? 'Manual' : 'Excel';
@@ -623,6 +684,31 @@
             const stiRows = [...new Set(currentInputData.map(item => String(item.reference || item).trim()))].filter(ref => stiSet.has(ref.toUpperCase()));
             document.querySelector('#stiTable tbody').innerHTML = stiRows.map(ref => `<tr><td><span>${ref}</span></td><td>✔ Disponible</td></tr>`).join('') || '<tr><td colspan="2" style="text-align:center">Sin coincidencias</td></tr>';
             
+            // --- CONFIGURAR FILTRO INTERACTIVO ---
+            const totalMatches = (searchResults.inventario || []).length +
+                                 (searchResults.of_company?.data || []).length +
+                                 (searchResults.addedStock || []).length +
+                                 (searchResults.others || []).reduce((acc, c) => acc + (c.data || []).length, 0) +
+                                 stiRows.length;
+
+            const filterContainer = document.getElementById('resultsFilterContainer');
+            const filterInput = document.getElementById('resultsFilterInput');
+            
+            if (totalMatches > 0) {
+                filterContainer.classList.remove('hidden');
+                filterInput.value = ''; // limpiar texto previo
+            } else {
+                filterContainer.classList.add('hidden');
+            }
+
+            // Restaurar visibilidad de todas las tarjetas y filas tras nueva renderización
+            document.querySelectorAll('.result-card').forEach(card => {
+                card.style.display = '';
+                card.querySelectorAll('tbody tr').forEach(row => {
+                    row.style.display = '';
+                });
+            });
+
             updateOfUI();
         }
 
@@ -1015,6 +1101,52 @@
         
         // Refrescar estado de red automáticamente cada 30 segundos
         setInterval(loadNetworkStatus, 30000);
+
+        // Control del filtro interactivo de resultados
+        document.getElementById('resultsFilterInput').addEventListener('input', () => {
+            const query = document.getElementById('resultsFilterInput').value.toLowerCase().trim();
+            const cards = document.querySelectorAll('.result-card');
+            
+            cards.forEach(card => {
+                const rows = card.querySelectorAll('tbody tr');
+                let hasVisibleRows = false;
+                
+                rows.forEach(row => {
+                    const isNoResults = row.querySelector('td[colspan]');
+                    if (isNoResults) {
+                        return; // Omitir el procesamiento normal de coincidencia
+                    }
+                    
+                    const cells = Array.from(row.cells);
+                    const match = cells.some(cell => cell.textContent.toLowerCase().includes(query));
+                    
+                    if (match) {
+                        row.style.display = '';
+                        hasVisibleRows = true;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+                
+                // Tratar la fila de "Sin resultados" / "Sin coincidencias"
+                const emptyRow = card.querySelector('tbody tr td[colspan]');
+                if (emptyRow) {
+                    const parentTr = emptyRow.closest('tr');
+                    if (query === '') {
+                        parentTr.style.display = '';
+                    } else {
+                        parentTr.style.display = 'none';
+                    }
+                }
+                
+                // Mostrar/Ocultar tarjeta entera
+                if (query !== '' && !hasVisibleRows) {
+                    card.style.display = 'none';
+                } else {
+                    card.style.display = '';
+                }
+            });
+        });
     </script>
 </body>
 </html>

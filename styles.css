@@ -6,6 +6,7 @@
     --bg-color: #f8fafc;
     --card-bg: #ffffff;
     --text-color: #1e293b;
+    --text-muted: #64748b;
     --border-color: #e2e8f0;
     --input-bg: #ffffff;
     --selector-bg: #f1f5f9;
@@ -15,6 +16,7 @@ body.dark-theme {
     --bg-color: #0f172a;
     --card-bg: #1e293b;
     --text-color: #f8fafc;
+    --text-muted: #94a3b8;
     --border-color: #334155;
     --input-bg: #0f172a;
     --selector-bg: #1e293b;
@@ -219,6 +221,8 @@ textarea:focus {
 .btn-pdf:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+    box-shadow: none !important;
+    transform: none !important;
 }
 
 .btn-pdf {
@@ -233,6 +237,22 @@ textarea:focus {
 
 .btn-pdf:hover:not(:disabled) {
     background-color: #B91C1C;
+}
+
+/* Micro-interacciones premium para botones */
+.btn-primary:hover,
+.btn-secondary:hover:not(:disabled),
+.btn-purchase:hover:not(:disabled),
+.btn-pdf:hover:not(:disabled) {
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+    transform: translateY(-1px);
+}
+
+.btn-primary:active,
+.btn-secondary:active:not(:disabled),
+.btn-purchase:active:not(:disabled),
+.btn-pdf:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
 }
 
 .btn-icon-svg {
@@ -538,12 +558,15 @@ table {
 
 th {
     background: #f1f5f9;
-    padding: 0.4rem;
-    font-weight: 600;
-    font-size: 0.75rem;
+    padding: 0.5rem 0.4rem;
+    font-weight: 700;
+    font-size: 0.7rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
     position: sticky;
     top: 0;
     z-index: 10;
+    border-bottom: 2px solid var(--border-color);
 }
 
 td {
@@ -1207,4 +1230,244 @@ body.loading .spinner-container {
 .results-filter-input:focus {
     border-color: var(--primary-color);
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* --- TABLA DE ASIGNACIÓN POR PRIORIDAD DE STOCK --- */
+.allocation-card {
+    border: 2px solid #bfdbfe;
+    background-color: rgba(239, 246, 255, 0.3);
+    margin-top: 2rem;
+    box-shadow: 0 4px 20px -2px rgba(37, 99, 235, 0.08), 0 2px 8px -1px rgba(37, 99, 235, 0.04);
+    grid-column: 1 / -1;
+}
+
+body.dark-theme .allocation-card {
+    border-color: #1e3a8a;
+    background-color: rgba(30, 58, 138, 0.15);
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.3);
+}
+
+.allocation-card h2 {
+    color: var(--primary-color);
+    border-bottom-color: #bfdbfe;
+    font-size: 1.35rem;
+}
+
+body.dark-theme .allocation-card h2 {
+    color: #60a5fa;
+    border-bottom-color: #1e3a8a;
+}
+
+/* Resaltado de la columna de la empresa prioritaria */
+.priority-header {
+    background-color: #2563eb !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    border-bottom: 2px solid #1d4ed8 !important;
+    border-left: 2px solid #2563eb !important;
+    border-right: 2px solid #2563eb !important;
+}
+
+body.dark-theme .priority-header {
+    background-color: #3b82f6 !important;
+    color: #ffffff !important;
+    border-bottom: 2px solid #1d4ed8 !important;
+    border-left: 2px solid #3b82f6 !important;
+    border-right: 2px solid #3b82f6 !important;
+}
+
+.priority-cell {
+    background-color: rgba(37, 99, 235, 0.15) !important;
+    font-weight: 700 !important;
+    color: #1e3a8a !important;
+    border-left: 2px solid #2563eb !important;
+    border-right: 2px solid #2563eb !important;
+}
+
+body.dark-theme .priority-cell {
+    background-color: rgba(59, 130, 246, 0.25) !important;
+    font-weight: 700 !important;
+    color: #93c5fd !important;
+    border-left: 2px solid #3b82f6 !important;
+    border-right: 2px solid #3b82f6 !important;
+}
+
+/* Formateo de valores numéricos y vacíos */
+.alloc-qty {
+    font-weight: 600;
+}
+
+.zero-qty {
+    color: #94a3b8;
+    opacity: 0.6;
+}
+
+body.dark-theme .zero-qty {
+    color: #475569;
+}
+
+.ref-col {
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.req-col {
+    font-weight: 700;
+    color: var(--text-color);
+}
+
+/* Badges de estado en línea para la asignación y STI */
+.status-badge-inline {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.2rem 0.5rem;
+    border-radius: 0.375rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.status-badge-inline.covered {
+    background-color: #dcfce7;
+    color: #15803d;
+    border: 1px solid #bbf7d0;
+}
+
+body.dark-theme .status-badge-inline.covered {
+    background-color: rgba(21, 128, 61, 0.2);
+    color: #4ade80;
+    border-color: rgba(74, 222, 128, 0.3);
+}
+
+.status-badge-inline.missing-partial {
+    background-color: #ffedd5;
+    color: #ea580c;
+    border: 1px solid #fed7aa;
+}
+
+body.dark-theme .status-badge-inline.missing-partial {
+    background-color: rgba(234, 88, 12, 0.2);
+    color: #fb923c;
+    border-color: rgba(251, 146, 60, 0.3);
+}
+
+.status-badge-inline.missing-all {
+    background-color: #fee2e2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+}
+
+body.dark-theme .status-badge-inline.missing-all {
+    background-color: rgba(220, 38, 38, 0.2);
+    color: #f87171;
+    border-color: rgba(248, 113, 113, 0.3);
+}
+
+.status-badge-inline.sti-yes {
+    background-color: #ecfdf5;
+    color: #059669;
+    border: 1px solid #a7f3d0;
+}
+
+body.dark-theme .status-badge-inline.sti-yes {
+    background-color: rgba(5, 150, 105, 0.15);
+    color: #34d399;
+    border-color: rgba(52, 211, 153, 0.3);
+}
+
+.status-badge-inline.sti-no {
+    color: #94a3b8;
+}
+
+body.dark-theme .status-badge-inline.sti-no {
+    color: #475569;
+}
+
+/* Observaciones Input */
+.obs-input {
+    width: 100%;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-color);
+    font-size: 0.82em;
+    padding: 3px 6px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.obs-input:hover {
+    border-color: var(--border-color);
+    background-color: var(--input-bg);
+}
+
+.obs-input:focus {
+    border-color: var(--primary-color);
+    background-color: var(--input-bg);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+/* Centrar cabeceras y valores de la tabla de asignación */
+#allocationTable th,
+#allocationTable td {
+    text-align: center;
+    vertical-align: middle;
+}
+
+/* Alinear inputs de observaciones al centro */
+.obs-input {
+    text-align: center;
+}
+
+/* Colores de fondo monocromáticos alternos (Tema Claro - Tonos de Azul) */
+#allocationTable th:nth-child(odd), 
+#allocationTable td:nth-child(odd) { 
+    background-color: rgba(37, 99, 235, 0.04); /* Azul sumamente claro */
+}
+#allocationTable th:nth-child(even), 
+#allocationTable td:nth-child(even) { 
+    background-color: rgba(37, 99, 235, 0.12); /* Azul claro contrastante */
+}
+
+/* Colores de fondo monocromáticos alternos (Tema Oscuro - Tonos de Azul sobre fondo oscuro) */
+body.dark-theme #allocationTable th:nth-child(odd), 
+body.dark-theme #allocationTable td:nth-child(odd) { 
+    background-color: rgba(37, 99, 235, 0.06); /* Azul oscuro translúcido suave */
+}
+body.dark-theme #allocationTable th:nth-child(even), 
+body.dark-theme #allocationTable td:nth-child(even) { 
+    background-color: rgba(37, 99, 235, 0.18); /* Azul oscuro translúcido más fuerte */
+}
+
+/* Efecto hover interactivo sobre las filas de la tabla de asignación */
+#allocationTable tbody tr:hover td:not(.priority-cell) {
+    background-color: rgba(37, 99, 235, 0.22) !important;
+}
+
+body.dark-theme #allocationTable tbody tr:hover td:not(.priority-cell) {
+    background-color: rgba(59, 130, 246, 0.3) !important;
+}
+
+/* Scrollbars personalizadas y adaptadas para el Tema Oscuro */
+body.dark-theme .history-list::-webkit-scrollbar-track {
+    background: #0f172a;
+}
+body.dark-theme .history-list::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 4px;
+}
+body.dark-theme .history-list::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+}
+
+/* Estilos refinados para los placeholders de los inputs */
+.obs-input::placeholder {
+    color: #94a3b8;
+    opacity: 0.7;
+}
+
+body.dark-theme .obs-input::placeholder {
+    color: #475569;
+    opacity: 0.7;
 }

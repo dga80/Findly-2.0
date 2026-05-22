@@ -1,8 +1,43 @@
 import os
+import sys
 import re
 import pandas as pd
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+
+# Redefinir print para evitar fallos de codificación Unicode/emoji en consolas Windows (cp1252)
+_original_print = print
+def print(*args, **kwargs):
+    file = kwargs.get('file', sys.stdout)
+    if file is None:
+        file = sys.stdout
+    encoding = getattr(file, 'encoding', None) or 'utf-8'
+    
+    safe_args = []
+    for arg in args:
+        if isinstance(arg, str):
+            cleaned = arg
+            replacements = {
+                "⚠": "[AVISO]",
+                "🚀": "[CACHE]",
+                "📥": "[LEER]",
+                "✓": "[OK]",
+                "❌": "[ERROR]",
+                "🔄": "[RELOAD]"
+            }
+            for emoji, rep in replacements.items():
+                cleaned = cleaned.replace(emoji, rep)
+            try:
+                cleaned.encode(encoding, errors='strict')
+            except UnicodeEncodeError:
+                try:
+                    cleaned = cleaned.encode(encoding, errors='replace').decode(encoding)
+                except Exception:
+                    cleaned = cleaned.encode('ascii', errors='replace').decode('ascii')
+            safe_args.append(cleaned)
+        else:
+            safe_args.append(arg)
+    _original_print(*safe_args, **kwargs)
 
 app = Flask(__name__)
 CORS(app)

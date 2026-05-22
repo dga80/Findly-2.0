@@ -313,6 +313,29 @@
                         </table>
                     </div>
                 </div>
+            </div>
+
+            <!-- Tabla de Asignación por Prioridad -->
+            <div class="result-card allocation-card hidden" id="card-allocation" style="margin-top: 2rem;">
+                <h2>
+                    <svg class="icon-basket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--primary-color); width: 22px; height: 22px; vertical-align: middle; margin-right: 6px;">
+                        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    </svg>
+                    Resumen de Asignación de Stock por Prioridad
+                </h2>
+                <div class="table-container">
+                    <table id="allocationTable">
+                        <thead>
+                            <tr id="allocationTableHeaders">
+                                <!-- Cabeceras dinámicas se inyectarán aquí -->
+                            </tr>
+                        </thead>
+                        <tbody id="allocationTableBody">
+                            <!-- Filas dinámicas se inyectarán aquí -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </section>
         
         <!-- Overlay de carga global -->
@@ -400,6 +423,7 @@
         let addedStockFile = null;
         let currentInputData = [];
         let currentAddedStockData = [];
+        let observationsMap = {};
 
         // Tab logic
         document.getElementById('manualTab').addEventListener('click', () => {
@@ -576,7 +600,246 @@
                         }
                     });
                 });
+
+                // Renderizar la tabla de asignación por prioridad
+                renderAllocationTable();
             } catch (e) { console.error(e); }
+        }
+
+        function getAllocationRowsData() {
+            if (!searchResults || !currentInputData || currentInputData.length === 0) return [];
+            
+            const isManual = !document.getElementById('manualInputContainer').classList.contains('hidden');
+            const selectedCompany = isManual ? document.getElementById('ofCompany').value : document.getElementById('ofCompanyUpload').value;
+            
+            const allCompanies = ['CESA', 'MES', 'AYC', 'LOESS'];
+            const otherCompanies = allCompanies.filter(c => c !== selectedCompany).sort();
+
+            const cleanRef = (ref) => String(ref).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+            
+            const cerdanyaMap = {};
+            const cerdanyaUbiMap = {};
+            (searchResults.inventario || []).forEach(item => {
+                const r = cleanRef(item.Referencia);
+                cerdanyaMap[r] = (cerdanyaMap[r] || 0) + parseFloat(item.Cantidad || 0);
+                if (item.Ubicacion) {
+                    if (!cerdanyaUbiMap[r]) {
+                        cerdanyaUbiMap[r] = new Set();
+                    }
+                    cerdanyaUbiMap[r].add(String(item.Ubicacion).trim());
+                }
+            });
+
+            const priorityMap = {};
+            if (searchResults.of_company && searchResults.of_company.data) {
+                (searchResults.of_company.data || []).forEach(item => {
+                    const r = cleanRef(item.Referencia);
+                    priorityMap[r] = (priorityMap[r] || 0) + parseFloat(item.Cantidad || 0);
+                });
+            }
+
+            const othersMap = {};
+            otherCompanies.forEach(c => { othersMap[c] = {}; });
+            (searchResults.others || []).forEach(comp => {
+                const cName = comp.name;
+                if (othersMap[cName]) {
+                    (comp.data || []).forEach(item => {
+                        const r = cleanRef(item.Referencia);
+                        othersMap[cName][r] = (othersMap[cName][r] || 0) + parseFloat(item.Cantidad || 0);
+                    });
+                }
+            });
+
+            const dynamicMap = {};
+            (searchResults.addedStock || []).forEach(item => {
+                const r = cleanRef(item.Referencia);
+                dynamicMap[r] = (dynamicMap[r] || 0) + parseFloat(item.Cantidad || 0);
+            });
+
+            const stiSet = new Set((searchResults.sti || []).map(r => String(r).trim().toUpperCase()));
+            const uniqueRefs = [...new Set(currentInputData.map(item => String(item.reference || item).trim()))];
+
+            return uniqueRefs.map(refOriginal => {
+                const rClean = cleanRef(refOriginal);
+                
+                let requestedQty = 0;
+                currentInputData.forEach(item => {
+                    if (String(item.reference || item).trim().toUpperCase() === refOriginal.toUpperCase()) {
+                        requestedQty += parseFloat(item.quantity || 1);
+                    }
+                });
+
+                if (requestedQty <= 0) return null;
+
+                const cerdanyaAvail = cerdanyaMap[rClean] || 0;
+                const priorityAvail = priorityMap[rClean] || 0;
+                const dynamicAvail = dynamicMap[rClean] || 0;
+                const inSti = stiSet.has(refOriginal.toUpperCase()) || stiSet.has(rClean);
+
+                // Filtrar referencias que no tienen stock en absoluto (y que tampoco están en STI)
+                const hasAnyStock = (cerdanyaAvail > 0) || (dynamicAvail > 0) || (priorityAvail > 0) || otherCompanies.some(c => (othersMap[c][rClean] || 0) > 0) || inSti;
+                if (!hasAnyStock) return null;
+
+                const cerdanyaUbis = cerdanyaUbiMap[rClean] ? [...cerdanyaUbiMap[rClean]].join(', ') : '-';
+
+                let remaining = requestedQty;
+
+                // 1. Stock Cerdanya
+                const cerdanyaAlloc = Math.min(remaining, cerdanyaAvail);
+                remaining -= cerdanyaAlloc;
+
+                // 2. Stock Dinámico
+                const dynamicAlloc = Math.min(remaining, dynamicAvail);
+                remaining -= dynamicAlloc;
+
+                // 3. Empresa Prioritaria
+                const priorityAlloc = Math.min(remaining, priorityAvail);
+                remaining -= priorityAlloc;
+
+                // 4. Resto de empresas
+                const othersAlloc = {};
+                otherCompanies.forEach(c => {
+                    const avail = othersMap[c][rClean] || 0;
+                    const alloc = Math.min(remaining, avail);
+                    othersAlloc[c] = alloc;
+                    remaining -= alloc;
+                });
+
+                // 5. Stock STI
+                const stiAlloc = inSti ? remaining : 0;
+                remaining -= stiAlloc;
+
+                const row = {
+                    "Referencia": refOriginal,
+                    "UbiCerdanya": cerdanyaUbis,
+                    "Encargo": requestedQty,
+                    "Cerdanya": cerdanyaAlloc,
+                    "Stock Dinámico": dynamicAlloc,
+                };
+                row[`${selectedCompany} (OF)`] = priorityAlloc;
+                otherCompanies.forEach(c => {
+                    row[c] = othersAlloc[c];
+                });
+                row["STI"] = stiAlloc;
+                row["Faltante"] = remaining;
+                row["En STI"] = inSti ? "Sí" : "No";
+
+                return row;
+            }).filter(Boolean);
+        }
+
+        function renderAllocationTable() {
+            const allocCard = document.getElementById('card-allocation');
+            if (!allocCard) return;
+
+            // Si no hay resultados de búsqueda cargados aún, ocultamos la tarjeta
+            const totalRecords = (searchResults.inventario || []).length +
+                                 (searchResults.of_company?.data || []).length +
+                                 (searchResults.addedStock || []).length +
+                                 (searchResults.others || []).reduce((acc, c) => acc + (c.data || []).length, 0);
+
+            if (totalRecords === 0) {
+                allocCard.classList.add('hidden');
+                return;
+            }
+
+            allocCard.classList.remove('hidden');
+
+            const isManual = !document.getElementById('manualInputContainer').classList.contains('hidden');
+            const selectedCompany = isManual ? document.getElementById('ofCompany').value : document.getElementById('ofCompanyUpload').value;
+            
+            const allCompanies = ['CESA', 'MES', 'AYC', 'LOESS'];
+            const otherCompanies = allCompanies.filter(c => c !== selectedCompany).sort();
+
+            const allocRows = getAllocationRowsData();
+
+            // Verificar si hay asignaciones en Stock Dinámico en los datos de la tabla
+            const hasDynamicStock = allocRows.some(row => row["Stock Dinámico"] && row["Stock Dinámico"] > 0);
+
+            // Cabeceras dinámicas ordenadas por prioridad
+            const headersRow = document.getElementById('allocationTableHeaders');
+            headersRow.innerHTML = `
+                <th>Referencia</th>
+                <th>Encargo</th>
+                <th>Cerdanya</th>
+                ${hasDynamicStock ? '<th>Stock Dinámico</th>' : ''}
+                <th class="priority-header">${selectedCompany} (OF)</th>
+                ${otherCompanies.map(c => `<th>${c}</th>`).join('')}
+                <th>STI</th>
+                <th>Faltante</th>
+                <th>Observaciones</th>
+            `;
+
+            // Generar filas
+            const tbody = document.getElementById('allocationTableBody');
+            
+            const rowsHtml = allocRows.map(row => {
+                const refOriginal = row.Referencia;
+                const ubiCerdanya = row.UbiCerdanya || '-';
+                const requestedQty = row.Encargo;
+                const cerdanyaAlloc = row.Cerdanya;
+                const dynamicAlloc = row["Stock Dinámico"];
+                const priorityAlloc = row[`${selectedCompany} (OF)`];
+                const stiAlloc = row["STI"];
+                const remaining = row.Faltante;
+                const inSti = row["En STI"] === "Sí";
+
+                // Helper para formatear valores celdas
+                const formatCell = (val) => val > 0 ? `<span class="alloc-qty">${val}</span>` : `<span class="zero-qty">-</span>`;
+
+                // Helper para formatear columna Cerdanya con su ubicación en la misma celda
+                const formatCerdanyaCell = (alloc, ubis) => {
+                    if (alloc <= 0) return `<span class="zero-qty">-</span>`;
+                    if (!ubis || ubis === '-') return `<span class="alloc-qty">${alloc}</span>`;
+                    return `<span class="alloc-qty">${alloc} <span style="font-size: 0.85em; font-weight: normal; color: var(--text-muted); font-family: monospace;">(${ubis})</span></span>`;
+                };
+
+                // Badge de pendiente
+                let pendingHtml = '';
+                if (remaining === 0) {
+                    pendingHtml = `<span class="status-badge-inline covered">✔ Cubierto</span>`;
+                } else if (remaining === requestedQty) {
+                    pendingHtml = `<span class="status-badge-inline missing-all">${remaining} uds</span>`;
+                } else {
+                    pendingHtml = `<span class="status-badge-inline missing-partial">${remaining} uds</span>`;
+                }
+
+                // Badge de STI
+                let stiHtml = '';
+                if (stiAlloc === 0 && remaining === 0) {
+                    // Si la referencia está cubierta (y no requirió STI), no se pone nada
+                    stiHtml = '';
+                } else if (inSti && stiAlloc > 0) {
+                    stiHtml = `<span class="status-badge-inline covered" style="background-color: #dcfce7; color: #15803d; border: 1px solid #bbf7d0;">${stiAlloc} uds</span>`;
+                } else {
+                    stiHtml = `<span class="zero-qty">-</span>`;
+                }
+
+                return `
+                    <tr>
+                        <td class="ref-col">${refOriginal}</td>
+                        <td class="req-col">${requestedQty}</td>
+                        <td>${formatCerdanyaCell(cerdanyaAlloc, ubiCerdanya)}</td>
+                        ${hasDynamicStock ? `<td>${formatCell(dynamicAlloc)}</td>` : ''}
+                        <td class="priority-cell">${formatCell(priorityAlloc)}</td>
+                        ${otherCompanies.map(c => `<td>${formatCell(row[c])}</td>`).join('')}
+                        <td>${stiHtml}</td>
+                        <td class="pending-col">${pendingHtml}</td>
+                        <td><input type="text" class="obs-input" data-ref="${refOriginal}" value="${observationsMap[refOriginal] || ''}" placeholder="Añadir nota..."></td>
+                    </tr>
+                `;
+            }).join('');
+
+            const colspan = hasDynamicStock ? 11 : 10;
+            tbody.innerHTML = rowsHtml || `<tr><td colspan="${colspan}" style="text-align:center">Sin referencias para procesar</td></tr>`;
+
+            // Escuchar cambios en los inputs de observaciones y guardarlos en el mapa global
+            tbody.querySelectorAll('.obs-input').forEach(input => {
+                input.addEventListener('input', (e) => {
+                    const ref = e.target.getAttribute('data-ref');
+                    observationsMap[ref] = e.target.value;
+                });
+            });
         }
 
         document.getElementById('ofCompany').addEventListener('change', updateOfUI);
@@ -715,6 +978,43 @@
         // Export Actions (FULL)
         document.getElementById('exportStockBtn').addEventListener('click', () => {
             const wb = XLSX.utils.book_new();
+            
+            // Agregar hoja de asignación de stock al inicio
+            const allocRows = getAllocationRowsData();
+            if (allocRows && allocRows.length > 0) {
+                const excelRows = allocRows.map(row => {
+                    const isManual = !document.getElementById('manualInputContainer').classList.contains('hidden');
+                    const selectedCompany = isManual ? document.getElementById('ofCompany').value : document.getElementById('ofCompanyUpload').value;
+                    const allCompanies = ['CESA', 'MES', 'AYC', 'LOESS'];
+                    const otherCompanies = allCompanies.filter(c => c !== selectedCompany).sort();
+
+                    const cleanRow = {
+                        "Referencia": row.Referencia,
+                        "Encargo": row.Encargo,
+                        "Cerdanya": row.Cerdanya > 0 
+                            ? (row.UbiCerdanya && row.UbiCerdanya !== '-' ? `${row.Cerdanya} (${row.UbiCerdanya})` : row.Cerdanya)
+                            : 0,
+                        "Stock Dinámico": row["Stock Dinámico"]
+                    };
+                    const priorityKey = `${selectedCompany} (OF)`;
+                    cleanRow[priorityKey] = row[priorityKey];
+
+                    otherCompanies.forEach(c => {
+                        cleanRow[c] = row[c];
+                    });
+                    
+                    if (row["STI"] === 0 && row.Faltante === 0) {
+                        cleanRow["STI"] = "";
+                    } else {
+                        cleanRow["STI"] = row["STI"] > 0 ? row["STI"] : "-";
+                    }
+                    cleanRow["Faltante"] = row.Faltante;
+                    cleanRow["Observaciones"] = observationsMap[row.Referencia] || "";
+                    return cleanRow;
+                });
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(excelRows), "Asignación de Stock");
+            }
+
             if (searchResults.inventario.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(searchResults.inventario), "Cerdanya");
             if (searchResults.of_company && searchResults.of_company.data.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(searchResults.of_company.data), `${searchResults.of_company.name} (OF)`);
             (searchResults.others || []).forEach(c => { if(c.data.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(c.data), c.name); });
@@ -838,11 +1138,116 @@
                 currentX += colWidth + gap;
             });
 
-            if (currentX + colWidth > pageWidth - paddingX) {
-                currentX = paddingX;
-                nextY = maxY;
+            if (searchResults.addedStock && searchResults.addedStock.length > 0) {
+                if (currentX + colWidth > pageWidth - paddingX) {
+                    currentX = paddingX;
+                    nextY = maxY;
+                }
+                renderTable("Stock Dinámico", searchResults.addedStock, currentX, nextY, colWidth, [3, 105, 161]);
             }
-            renderTable("Stock Dinámico", searchResults.addedStock, currentX, nextY, colWidth, [3, 105, 161]);
+
+            // Agregar Tabla de Asignación por Prioridad en una nueva página si hay datos
+            const allocRows = getAllocationRowsData();
+            if (allocRows && allocRows.length > 0) {
+                doc.addPage();
+                
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(14);
+                doc.setTextColor(...primaryColor);
+                doc.text("Resumen de Asignación de Stock por Prioridad", 10, 15);
+                
+                doc.setFontSize(8);
+                doc.setFont("helvetica", "italic");
+                doc.setTextColor(100);
+                doc.text("Distribución de unidades del encargo según la prioridad de almacén/empresa.", 10, 20);
+                
+                doc.setDrawColor(...accentColor);
+                doc.setLineWidth(0.4);
+                doc.line(10, 23, pageWidth - 10, 23);
+
+                const isManual = !document.getElementById('manualInputContainer').classList.contains('hidden');
+                const selectedCompany = isManual ? document.getElementById('ofCompany').value : document.getElementById('ofCompanyUpload').value;
+                const allCompanies = ['CESA', 'MES', 'AYC', 'LOESS'];
+                const otherCompanies = allCompanies.filter(c => c !== selectedCompany).sort();
+
+                // Verificar si hay asignaciones en Stock Dinámico en los datos de la tabla
+                const hasDynamicStock = allocRows.some(row => row["Stock Dinámico"] && row["Stock Dinámico"] > 0);
+
+                const headers = ["Referencia", "Encargo", "Cerdanya"];
+                if (hasDynamicStock) {
+                    headers.push("Stock Dinámico");
+                }
+                headers.push(`${selectedCompany} (OF)`);
+                headers.push(...otherCompanies);
+                headers.push("STI", "Faltante", "Observaciones");
+
+                const body = allocRows.map(row => {
+                    const rowData = [
+                        row.Referencia,
+                        row.Encargo,
+                        row.Cerdanya > 0 
+                            ? (row.UbiCerdanya && row.UbiCerdanya !== '-' ? `${row.Cerdanya} (${row.UbiCerdanya})` : row.Cerdanya)
+                            : '-'
+                    ];
+                    if (hasDynamicStock) {
+                        rowData.push(row["Stock Dinámico"] || '-');
+                    }
+                    rowData.push(row[`${selectedCompany} (OF)`] || '-');
+                    otherCompanies.forEach(c => {
+                        rowData.push(row[c] || '-');
+                    });
+                    rowData.push((row["STI"] === 0 && row.Faltante === 0) ? '' : (row["STI"] > 0 ? `${row["STI"]} uds` : '-'));
+                    rowData.push(row.Faltante === 0 ? 'Cubierto' : `${row.Faltante} uds`);
+                    rowData.push(observationsMap[row.Referencia] || '-');
+                    return rowData;
+                });
+
+                doc.autoTable({
+                    startY: 28,
+                    margin: { left: 10, right: 10 },
+                    head: [headers],
+                    body: body,
+                    theme: 'grid',
+                    headStyles: { fillColor: accentColor, textColor: 255, fontSize: 8, cellPadding: 1.5, halign: 'center' },
+                    styles: { fontSize: 7, cellPadding: 1.2, halign: 'center' },
+                    didParseCell: (cellData) => {
+                        if (cellData.section === 'body') {
+                            // Columna Faltante
+                            const lastColIdx = headers.indexOf("Faltante");
+                            if (cellData.column.index === lastColIdx) {
+                                if (cellData.cell.raw === 'Cubierto' || cellData.cell.raw === 0 || String(cellData.cell.raw).startsWith('0')) {
+                                    cellData.cell.styles.textColor = [21, 128, 61]; // Verde
+                                    cellData.cell.styles.fontStyle = 'bold';
+                                } else {
+                                    cellData.cell.styles.textColor = [220, 38, 38]; // Rojo
+                                    cellData.cell.styles.fontStyle = 'bold';
+                                }
+                            }
+                            
+                            // Columna STI
+                            const stiColIdx = headers.indexOf("STI");
+                            if (cellData.column.index === stiColIdx) {
+                                if (cellData.cell.raw && cellData.cell.raw !== '-' && cellData.cell.raw !== 'No') {
+                                    cellData.cell.styles.textColor = [21, 128, 61]; // Verde
+                                    cellData.cell.styles.fontStyle = 'bold';
+                                }
+                            }
+
+                            // Columna Prioritaria (Highlight Focus)
+                            const priorityColIdx = headers.indexOf(`${selectedCompany} (OF)`);
+                            if (cellData.column.index === priorityColIdx) {
+                                cellData.cell.styles.fillColor = [191, 219, 254]; // Azul de destaque (equivalente a #bfdbfe)
+                                cellData.cell.styles.fontStyle = 'bold';
+                            } else {
+                                // Columnas alternas en tonos de azul (Zebra Columnas en PDF)
+                                if (cellData.column.index % 2 === 1) {
+                                    cellData.cell.styles.fillColor = [240, 247, 255]; // Azul sumamente claro
+                                }
+                            }
+                        }
+                    }
+                });
+            }
 
             let fileName = selectedFile 
                 ? `${selectedFile.name.substring(0, selectedFile.name.lastIndexOf('.'))}_STOCK.pdf` 

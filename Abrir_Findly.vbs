@@ -6,4 +6,4 @@ WshShell.Run "python """ & "C:\Users\34616\Desktop\AppsDani_\Findly 2\server.py"
 WScript.Sleep 1000
 
 ' Abre el archivo index.html en el navegador predeterminado
-WshShell.Run """" & "C:\Users\34616\Desktop\AppsDani_\Findly 2\index_2.html" & """"
+WshShell.Run """" & "C:\Users\34616\Desktop\AppsDani_\Findly 2\findly2.0.html" & """"

@@ -682,6 +682,6 @@ def reload_cache():
     return jsonify({"message": "Caché de stock limpiada correctamente. Los archivos se volverán a leer en la siguiente búsqueda."})
 
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', debug=True, port=5000)
+    app.run(host='0.0.0.0', debug=True, port=5000)
 
 

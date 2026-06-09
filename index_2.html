@@ -348,6 +348,7 @@
     </div>
     <script>
         // LÓGICA COMPLETA INTEGRADA
+        const API_BASE_URL = 'http://192.168.1.151:5000';
 
         // Tema Oscuro / Claro
         const themeToggleBtn = document.getElementById('themeToggleBtn');
@@ -869,7 +870,7 @@
                     if (!selectedFile) throw new Error("Selecciona un archivo");
                     const formData = new FormData();
                     formData.append('file', selectedFile);
-                    const uploadRes = await fetch('http://localhost:5000/upload', { method: 'POST', body: formData });
+                    const uploadRes = await fetch(`${API_BASE_URL}/upload`, { method: 'POST', body: formData });
                     currentInputData = await uploadRes.json();
                     references = currentInputData;
                 }
@@ -877,12 +878,12 @@
                 if (addedStockFile) {
                     const formDataAdded = new FormData();
                     formDataAdded.append('file', addedStockFile);
-                    const uploadAddedRes = await fetch('http://localhost:5000/upload', { method: 'POST', body: formDataAdded });
+                    const uploadAddedRes = await fetch(`${API_BASE_URL}/upload`, { method: 'POST', body: formDataAdded });
                     currentAddedStockData = await uploadAddedRes.json();
                 } else { currentAddedStockData = []; }
 
                 const ofCompany = isManual ? document.getElementById('ofCompany').value : document.getElementById('ofCompanyUpload').value;
-                const response = await fetch('http://localhost:5000/search', {
+                const response = await fetch(`${API_BASE_URL}/search`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ references, addedStock: currentAddedStockData, of_company: ofCompany })
@@ -1258,7 +1259,7 @@
         // --- SISTEMA DE MONITOREO DE STOCK (MONITOR DE RED) ---
         async function loadNetworkStatus() {
             try {
-                const res = await fetch('http://localhost:5000/status');
+                const res = await fetch(`${API_BASE_URL}/status`);
                 if (!res.ok) throw new Error("Error en servidor");
                 const data = await res.json();
                 
@@ -1332,7 +1333,7 @@
             btn.classList.add('spinning');
             btn.disabled = true;
             try {
-                const res = await fetch('http://localhost:5000/reload_cache', { method: 'POST' });
+                const res = await fetch(`${API_BASE_URL}/reload_cache`, { method: 'POST' });
                 if (!res.ok) throw new Error("Error en servidor");
                 const data = await res.json();
                 

@@ -2,6 +2,7 @@ import os
 import sys
 import re
 import pandas as pd
+import threading
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
@@ -669,19 +670,44 @@ def get_status():
         "companies": company_status
     })
 
+def preload_all_caches():
+    print("🔄 Precargando bases de datos de stock en caché...")
+    try:
+        read_inventario()
+    except Exception as e:
+        print(f"Error precargando Inventario: {e}")
+        
+    try:
+        read_sti()
+    except Exception as e:
+        print(f"Error precargando STI: {e}")
+        
+    for comp, path in COMPANY_PATHS.items():
+        try:
+            read_company_file(path, comp)
+        except Exception as e:
+            print(f"Error precargando {comp}: {e}")
+    print("✓ Precarga de caché completada.")
+
 @app.route('/reload_cache', methods=['POST'])
 def reload_cache():
     global INVENTARIO_CACHE, SONEPAR_CACHE, STI_CACHE, COMPANY_CACHE
-    print("🔄 Limpiando caché a petición del cliente...")
+    print("🔄 Limpiando y recargando caché a petición del cliente...")
     
     INVENTARIO_CACHE = {"mtime": None, "df": None}
     SONEPAR_CACHE = {"mtime": None, "df": None}
     STI_CACHE = {"mtime": None, "df": None}
     COMPANY_CACHE.clear()
     
-    return jsonify({"message": "Caché de stock limpiada correctamente. Los archivos se volverán a leer en la siguiente búsqueda."})
+    # Arrancar la recarga inmediatamente en un hilo secundario
+    threading.Thread(target=preload_all_caches, daemon=True).start()
+    
+    return jsonify({"message": "Caché de stock limpiada e iniciando recarga en segundo plano."})
 
 if __name__ == '__main__':
+    # Si estamos en debug, solo arrancamos el hilo en el proceso hijo reloader
+    if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        threading.Thread(target=preload_all_caches, daemon=True).start()
     app.run(host='0.0.0.0', debug=True, port=5000)
 
 

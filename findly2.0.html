@@ -1155,16 +1155,19 @@
                 doc.setFont("helvetica", "bold");
                 doc.setFontSize(14);
                 doc.setTextColor(...primaryColor);
-                doc.text("Resumen de Asignación de Stock por Prioridad", 10, 15);
+                doc.text(titleName, 10, 13);
+                
+                doc.setFontSize(10);
+                doc.text("Resumen de Asignación de Stock por Prioridad", 10, 18);
                 
                 doc.setFontSize(8);
                 doc.setFont("helvetica", "italic");
                 doc.setTextColor(100);
-                doc.text("Distribución de unidades del encargo según la prioridad de almacén/empresa.", 10, 20);
+                doc.text("Distribución de unidades del encargo según la prioridad de almacén/empresa.", 10, 22);
                 
                 doc.setDrawColor(...accentColor);
                 doc.setLineWidth(0.4);
-                doc.line(10, 23, pageWidth - 10, 23);
+                doc.line(10, 24, pageWidth - 10, 24);
 
                 const isManual = !document.getElementById('manualInputContainer').classList.contains('hidden');
                 const selectedCompany = isManual ? document.getElementById('ofCompany').value : document.getElementById('ofCompanyUpload').value;
@@ -1204,7 +1207,7 @@
                 });
 
                 doc.autoTable({
-                    startY: 28,
+                    startY: 29,
                     margin: { left: 10, right: 10 },
                     head: [headers],
                     body: body,
